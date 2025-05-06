@@ -17,7 +17,7 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
 
-const DistributeUI = () => {
+const Payroll = () => {
   const [mode, setMode] = useState("single");
   const [distributions, setDistributions] = useState([
     {
@@ -407,4 +407,4 @@ const DistributeUI = () => {
   );
 };
 
-export default DistributeUI;
+export default Payroll;
