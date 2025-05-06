@@ -65,7 +65,7 @@ const ConnectWallet = ({ onConnect }) => {
  * @returns {React.ReactNode}
  */
 const Auth = ({ children }) => {
-  const [isWalletConnected, setIsWalletConnected] = useState(false);
+  const [isWalletConnected, setIsWalletConnected] = useState(true);
 
   // Function to handle successful wallet connection
   const handleWalletConnect = () => {
