@@ -111,7 +111,7 @@ const Payroll = () => {
             {/* Title & Toggle */}
             <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-6 md:mb-8 gap-4 sm:gap-0">
               <h2 className="text-xl md:text-2xl font-medium">Payroll</h2>
-              <div className="w-full sm:w-auto bg-muted rounded-full inline-flex border">
+              <div className="w-full sm:w-auto bg-background rounded-full inline-flex border">
                 <button
                   className={cn(
                     "flex-1 sm:flex-none px-4 md:px-6 py-2 md:py-3 text-sm rounded-full transition-all",

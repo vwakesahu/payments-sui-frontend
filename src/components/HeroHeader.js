@@ -30,7 +30,7 @@ const VideoContent = () => (
   <div className="relative pt-[56.25%]">
     <iframe
       className="absolute top-0 left-0 w-full h-full"
-      src="https://www.youtube.com/embed/EZK9yrLaK_g?si=rKZZhYTfKIhuEMTp"
+      src="https://www.youtube.com/embed/?si=rKZZhYTfKIhuEMTp"
       title="Protocol Demo"
       frameBorder="0"
       allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"

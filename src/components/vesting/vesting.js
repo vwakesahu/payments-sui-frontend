@@ -99,10 +99,10 @@ const Vesting = () => {
   return (
     <div>
       <HeroHeader />
-      <div className="mt-6 md:mt-10 max-w-7xl px-4 pb-10 md:pb-0 mx-auto md:px-8">
+      <div className="mt-6 md:mt-10 max-w-7xl mx-auto">
         <div className="flex flex-col md:grid md:grid-cols-12 gap-4 md:gap-8">
           {/* Left Panel - Vesting Form */}
-          <div className="w-full md:col-span-7 bg-background rounded-[20px] md:rounded-[35px] p-4 md:p-8 flex flex-col">
+          <div className="w-full md:col-span-7 rounded-[20px] border bg-muted/30 md:rounded-[35px] p-4 md:p-8 flex flex-col">
             {/* Title */}
             <div className="mb-6 md:mb-8">
               <h2 className="text-xl md:text-2xl font-medium">Token Vesting</h2>
@@ -274,7 +274,7 @@ const Vesting = () => {
           {/* Right Panel - Information Cards */}
           <div className="w-full md:col-span-5 grid grid-cols-1 md:grid-rows-2 gap-4 md:gap-8">
             {/* Top Info Card - Vesting Schedule Summary */}
-            <div className=" rounded-[20px] md:rounded-[35px] p-6 md:p-8 relative overflow-hidden">
+            <div className=" rounded-[20px] md:rounded-[35px] border p-6 md:p-8 relative overflow-hidden">
               <div className="absolute inset-0 pointer-events-none">
                 <div className="absolute bottom-0 right-0 w-32 md:w-40 h-24 md:h-28 grid grid-cols-3 gap-2 p-4">
                   <div className="w-full h-full rounded-lg bg-muted"></div>
