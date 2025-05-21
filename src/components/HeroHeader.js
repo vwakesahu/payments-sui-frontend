@@ -25,6 +25,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
+import LoogoutButton from "./logout";
 
 const VideoContent = () => (
   <div className="relative pt-[56.25%]">
@@ -154,12 +155,7 @@ const HeroHeader = () => {
           </div>
         </div>
         <div className="flex items-center gap-4">
-          <div
-            className="bg-primary w-9 h-9 rounded-full grid place-items-center p-1.5 cursor-pointer hover:bg-primary/80"
-            onClick={handleLogout}
-          >
-            <LogOutIcon size={16} className="text-white" />
-          </div>
+          <LoogoutButton />
         </div>
       </div>
 
