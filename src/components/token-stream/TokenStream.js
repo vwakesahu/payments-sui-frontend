@@ -14,38 +14,27 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import HeroHeader from "../HeroHeader";
-import {
-  useCurrentAccount,
-  useSignTransaction,
-  useSuiClient,
-} from "@mysten/dapp-kit";
-import { Transaction } from "@mysten/sui/transactions";
+import { useCurrentAccount } from "@mysten/dapp-kit";
+import { useCreateStream } from "@/hooks/useCreateStream";
 
 const TokenStream = () => {
   const account = useCurrentAccount();
-  const { mutateAsync: signTransaction } = useSignTransaction();
-  const suiClient = useSuiClient();
   const [mode, setMode] = useState("create");
-  const [error, setError] = useState("");
-  const [isLoading, setIsLoading] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
-  const [transactionDigest, setTransactionDigest] = useState("");
   const [copied, setCopied] = useState(false);
 
-  // Copy transaction digest to clipboard
-  const copyToClipboard = async (text) => {
-    try {
-      await navigator.clipboard.writeText(text);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000); // Reset after 2 seconds
-    } catch (err) {
-      console.error("Failed to copy:", err);
-    }
-  };
+  const {
+    createStream,
+    isLoading,
+    error,
+    transactionDigest,
+    setError,
+    setIsLoading,
+  } = useCreateStream();
 
   // Create Stream Form State
   const [createStreamData, setCreateStreamData] = useState({
-    recipientAddress: account?.address || "", // Pre-populate with your address
+    recipientAddress: account?.address || "",
     amountPerSecond: "",
     topupBalance: "",
   });
@@ -59,135 +48,21 @@ const TokenStream = () => {
   // Auto-populate recipient address when account is available
   useEffect(() => {
     if (account?.address && !createStreamData.recipientAddress) {
-      setCreateStreamData(prev => ({
+      setCreateStreamData((prev) => ({
         ...prev,
         recipientAddress: account.address,
       }));
     }
   }, [account?.address]);
 
-  // FORM-BASED FUNCTION - Using form values with proper integer handling
-  const createStreamFromForm = async () => {
+  // Copy transaction digest to clipboard
+  const copyToClipboard = async (text) => {
     try {
-      if (!account) {
-        throw new Error("Please connect your wallet first");
-      }
-
-      // Validate form inputs
-      if (!createStreamData.recipientAddress || !createStreamData.amountPerSecond || !createStreamData.topupBalance) {
-        throw new Error("Please fill all fields");
-      }
-
-      if (!createStreamData.recipientAddress.startsWith("0x")) {
-        throw new Error("Invalid recipient address format");
-      }
-
-      console.log("=== CREATING STREAM FROM FORM VALUES ===");
-      const tx = new Transaction();
-
-      // Parse and validate form inputs
-      const amountPerSecondNum = parseFloat(createStreamData.amountPerSecond);
-      const topupBalanceNum = parseFloat(createStreamData.topupBalance);
-
-      if (isNaN(amountPerSecondNum) || isNaN(topupBalanceNum)) {
-        throw new Error("Invalid number values");
-      }
-
-      if (amountPerSecondNum <= 0 || topupBalanceNum <= 0) {
-        throw new Error("Amounts must be greater than 0");
-      }
-
-      // Convert to MIST (smallest unit) and ensure integers
-      const amountPerSecondInMist = Math.floor(amountPerSecondNum * 1e9);
-      const topupBalanceInMist = Math.floor(topupBalanceNum * 1e9);
-
-      // Validate converted amounts
-      if (amountPerSecondInMist <= 0 || topupBalanceInMist <= 0) {
-        throw new Error("Amounts are too small - use larger values");
-      }
-
-      if (amountPerSecondInMist > topupBalanceInMist) {
-        throw new Error("Amount per second cannot be greater than total balance");
-      }
-
-      // Calculate duration (ensuring integer result)
-      const durationInSeconds = Math.floor(topupBalanceInMist / amountPerSecondInMist);
-      if (durationInSeconds <= 0) {
-        throw new Error("Stream duration is too short");
-      }
-
-      // Get current time and calculate end time (both integers)
-      const currentTime = Math.floor(Date.now() / 1000);
-      const endTime = currentTime + durationInSeconds;
-
-      console.log("Form-based transaction values:", {
-        recipient: createStreamData.recipientAddress,
-        amountPerSecondInMist,
-        topupBalanceInMist,
-        currentTime,
-        endTime,
-        durationInSeconds,
-      });
-
-      // Verify all values are integers
-      console.log("All values are integers:", {
-        amountPerSecondInMist: Number.isInteger(amountPerSecondInMist),
-        topupBalanceInMist: Number.isInteger(topupBalanceInMist),
-        currentTime: Number.isInteger(currentTime),
-        endTime: Number.isInteger(endTime),
-        durationInSeconds: Number.isInteger(durationInSeconds),
-      });
-
-      // Create coin with the stream amount
-      const [coin] = tx.splitCoins(tx.gas, [topupBalanceInMist]);
-
-      // Use the working transaction structure
-      tx.moveCall({
-        target: `0xdebe630104899d2488485b82e953b02a4e8d95775f152dbd6fd6e7b91eb9ba8e::streaming::create_stream_entry`,
-        typeArguments: ["0x2::sui::SUI"],
-        arguments: [
-          coin,
-          tx.pure.address(createStreamData.recipientAddress),
-          tx.pure.u64(currentTime),
-          tx.pure.u64(endTime),
-          tx.object("0x6"),
-        ],
-      });
-
-      console.log("Signing form-based transaction...");
-
-      const { bytes, signature, reportTransactionEffects } = await signTransaction({
-        transaction: tx,
-      });
-
-      console.log("Executing form-based transaction...");
-
-      const result = await suiClient.executeTransactionBlock({
-        transactionBlock: bytes,
-        signature,
-        options: {
-          showEffects: true,
-          showObjectChanges: true,
-          showRawEffects: true,
-        },
-      });
-
-      if (reportTransactionEffects && result.rawEffects) {
-        await reportTransactionEffects(result.rawEffects);
-      }
-
-      console.log("SUCCESS: Form-based transaction completed:", result);
-      
-      // Store transaction digest for the success link
-      if (result.digest) {
-        setTransactionDigest(result.digest);
-      }
-      
-      return result;
-      
-    } catch (error) {
-      console.error("Form-based transaction failed:", error);
-      throw error;
+      await navigator.clipboard.writeText(text);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch (err) {
+      console.error("Failed to copy:", err);
     }
   };
 
@@ -198,8 +73,6 @@ const TokenStream = () => {
     }));
     setError("");
     setIsSuccess(false);
-    setTransactionDigest(""); // Clear previous transaction
-    setCopied(false); // Reset copy state
   };
 
   const handleWithdrawChange = (field, value) => {
@@ -209,105 +82,12 @@ const TokenStream = () => {
     }));
     setError("");
     setIsSuccess(false);
-    setTransactionDigest(""); // Clear previous transaction
-    setCopied(false); // Reset copy state
   };
 
   const handleModeToggle = (newMode) => {
     setMode(newMode);
     setError("");
     setIsSuccess(false);
-    setTransactionDigest(""); // Clear previous transaction
-    setCopied(false); // Reset copy state
-  };
-
-  const createStream = async (
-    recipientAddress,
-    amountPerSecond,
-    topupBalance
-  ) => {
-    try {
-      if (!account) {
-        throw new Error("Please connect your wallet first");
-      }
-
-      console.log("Creating transaction...");
-      const tx = new Transaction();
-
-      // Convert amount per second to a smaller unit (e.g., from tokens to smallest unit)
-      const amountPerSecondInSmallestUnit = Math.floor(
-        parseFloat(amountPerSecond) * 1e9
-      ); // Assuming 9 decimals
-      const topupBalanceInSmallestUnit = Math.floor(
-        parseFloat(topupBalance) * 1e9
-      );
-
-      // Get current timestamp
-      const currentTime = Math.floor(Date.now() / 1000);
-      const endTime =
-        currentTime +
-        topupBalanceInSmallestUnit / amountPerSecondInSmallestUnit;
-
-      console.log("Transaction parameters:", {
-        amountPerSecondInSmallestUnit,
-        recipientAddress,
-        currentTime,
-        endTime,
-      });
-
-      // Create the stream
-      tx.moveCall({
-        target: `0x02fb5b37f3f4be24cd4f0e90c8ee168919ab6f6ccad20a0baa26667e0d74cd5e::streaming::create_stream_entry`,
-        arguments: [
-          tx.pure.u64(amountPerSecondInSmallestUnit), // amount - specify as u64
-          tx.pure.address(recipientAddress), // recipient - specify as address
-          tx.pure.u64(currentTime), // start_time - specify as u64
-          tx.pure.u64(endTime), // end_time - specify as u64
-          tx.object("0x6"), // clock object
-        ],
-      });
-
-      console.log("Signing transaction...");
-      
-      // Sign the transaction (this bypasses the network config issue)
-      const { bytes, signature, reportTransactionEffects } = await signTransaction({
-        transaction: tx,
-      });
-
-      console.log("Executing signed transaction...");
-      
-      // Execute the signed transaction directly through the client
-      const result = await suiClient.executeTransactionBlock({
-        transactionBlock: bytes,
-        signature,
-        options: {
-          showEffects: true,
-          showObjectChanges: true,
-          showRawEffects: true,
-        },
-      });
-
-      // Report effects back to wallet (important for wallet state sync)
-      if (reportTransactionEffects && result.rawEffects) {
-        await reportTransactionEffects(result.rawEffects);
-      }
-
-      console.log("Transaction result:", result);
-      return result;
-    } catch (error) {
-      console.error("Error creating stream:", error);
-      
-      // More specific error handling
-      if (error.message.includes("NetworkConfig")) {
-        throw new Error("Network configuration error. Please ensure your wallet is connected to Devnet.");
-      } else if (error.message.includes("Insufficient")) {
-        throw new Error("Insufficient funds. Please ensure you have enough SUI tokens for gas fees.");
-      } else if (error.message.includes("pure")) {
-        throw new Error("Transaction parameter error. Please check your input values.");
-      }
-      
-      throw error;
-    }
   };
 
   const handleSubmit = async () => {
@@ -315,26 +95,19 @@ const TokenStream = () => {
       try {
         setIsLoading(true);
         setError("");
-        setTransactionDigest(""); // Clear previous transaction
-        setCopied(false); // Reset copy state
+        setIsSuccess(false);
 
-        console.log("=== USING FORM VALUES ===");
-        const result = await createStreamFromForm(); // Use form-based function
+        const result = await createStream(createStreamData);
 
         if (result) {
           setIsSuccess(true);
         }
       } catch (err) {
-        setError("Failed to create token stream: " + err.message);
+        setError(err.message);
       } finally {
         setIsLoading(false);
       }
     } else {
-      // Form validation for withdraw
-      if (!withdrawData.creatorAddress || !withdrawData.amountPerSecond) {
-        setError("Please fill all fields");
-        return;
-      }
       // Withdraw functionality not implemented yet
       setError("Withdraw functionality coming soon!");
     }
@@ -430,7 +203,7 @@ const TokenStream = () => {
                           : "Tokens withdrawn successfully!"}
                       </span>
                     </div>
-                    
+
                     {transactionDigest && (
                       <div className="bg-white rounded-lg p-3 border border-green-200">
                         <div className="flex items-center justify-between mb-2">
@@ -446,11 +219,11 @@ const TokenStream = () => {
                             {copied ? "Copied!" : "Copy"}
                           </button>
                         </div>
-                        
+
                         <div className="text-xs text-gray-600 break-all mb-2">
                           {transactionDigest}
                         </div>
-                        
+
                         <a
                           href={`https://suiscan.xyz/devnet/tx/${transactionDigest}`}
                           target="_blank"
