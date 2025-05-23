@@ -25,6 +25,7 @@ const Payroll = () => {
     createPayroll,
     addEmployee,
     processPayment,
+    processAllPayments,
     isLoading,
     error: createError,
     transactionDigest,
@@ -115,10 +116,8 @@ const Payroll = () => {
         await addEmployee(result.payrollId, dist.address, amountInMist);
       }
 
-      // Finally process payment for each employee
-      for (const dist of distributions) {
-        await processPayment(result.payrollId, dist.address);
-      }
+      // Finally process all payments at once
+      await processAllPayments(result.payrollId);
 
       setIsSuccess(true);
       setSuccessMessage(

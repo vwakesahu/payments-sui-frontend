@@ -243,10 +243,78 @@ export const useCreatePayroll = () => {
     }
   };
 
+  const processAllPayments = async (payrollId) => {
+    try {
+      if (!account) {
+        throw new Error("Please connect your wallet first");
+      }
+
+      console.log("=== PROCESSING ALL PAYMENTS ===");
+      console.log("Payroll ID:", payrollId);
+
+      const tx = new Transaction();
+
+      // Call the process_all_payments function
+      tx.moveCall({
+        target: `0x52b1773c371bf9003e7371426e519b17c9669cc310d138ace649785a977fd17e::payroll::process_all_payments`,
+        typeArguments: ["0x2::sui::SUI"],
+        arguments: [
+          tx.object(payrollId),
+          tx.object("0x6"), // Clock object
+        ],
+      });
+
+      console.log("Signing process all payments transaction...");
+
+      const { bytes, signature, reportTransactionEffects } =
+        await signTransaction({
+          transaction: tx,
+        });
+
+      console.log("Executing process all payments transaction...");
+
+      const result = await suiClient.executeTransactionBlock({
+        transactionBlock: bytes,
+        signature,
+        options: {
+          showEffects: true,
+          showObjectChanges: true,
+          showRawEffects: true,
+        },
+        gasBudget: 20000000, // 0.02 SUI gas budget
+      });
+
+      if (reportTransactionEffects && result.rawEffects) {
+        await reportTransactionEffects(result.rawEffects);
+      }
+
+      console.log(
+        "SUCCESS: Process all payments transaction completed:",
+        result
+      );
+
+      // Store transaction digest
+      if (result.digest) {
+        setTransactionDigest(result.digest);
+      }
+
+      return result;
+    } catch (error) {
+      console.error("Process all payments transaction failed:", error);
+      console.error("Error details:", {
+        message: error.message,
+        stack: error.stack,
+        name: error.name,
+      });
+      throw error;
+    }
+  };
+
   return {
     createPayroll,
     addEmployee,
     processPayment,
+    processAllPayments,
     isLoading,
     error,
     transactionDigest,
