@@ -1,50 +1,37 @@
 import React, { useState } from "react";
-import {
-  Calendar as CalendarIcon,
-  HeartHandshake,
-  Plus,
-  Trash2,
-  Loader2,
-} from "lucide-react";
+import { Plus, Trash2, Loader2, Copy, ExternalLink } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Calendar } from "@/components/ui/calendar";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { format } from "date-fns";
+import { useCreatePayroll } from "@/hooks/useCreatePayroll";
 
 const Payroll = () => {
   const [mode, setMode] = useState("single");
   const [distributions, setDistributions] = useState([
     {
       id: 1,
-      address: "0xfCefe53c7012a075b8a711df391100d9c431c468",
-      amount: "300",
+      address:
+        "0xf66ebd40671196ec784ac4d547563403986bbd33cfa3cdb28a17000bef3b4c0e",
+      amount: "1",
     },
   ]);
 
-  const [lockTime, setLockTime] = useState();
-  const [dilute, setDilute] = useState();
   const [error, setError] = useState("");
-  const [isLoading, setIsLoading] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
+  const [successMessage, setSuccessMessage] = useState("");
+  const [copied, setCopied] = useState(false);
 
-  const today = new Date();
-
-  // Add this function to determine if a date should be disabled
-  const disabledDays = (date) => {
-    // Create a new date object set to the beginning of today
-    const startOfToday = new Date(today);
-    startOfToday.setHours(0, 0, 0, 0);
-
-    // Return true for dates that are before today (making them disabled)
-    // This allows the current date to be selectable
-    return date < startOfToday;
-  };
+  const {
+    createPayroll,
+    addEmployee,
+    processPayment,
+    isLoading,
+    error: createError,
+    transactionDigest,
+    payrollId,
+    setError: setCreateError,
+    setIsLoading,
+  } = useCreatePayroll();
 
   const totalAmount = distributions.reduce((sum, dist) => {
     const amount = parseFloat(dist.amount) || 0;
@@ -54,8 +41,19 @@ const Payroll = () => {
   const handleModeToggle = (newMode) => {
     setMode(newMode);
     if (newMode === "single") {
-      setDistributions([{ id: 1, address: "", amount: "" }]);
+      setDistributions([
+        {
+          id: 1,
+          address:
+            "0xf66ebd40671196ec784ac4d547563403986bbd33cfa3cdb28a17000bef3b4c0e",
+          amount: "1",
+        },
+      ]);
     }
+    setError("");
+    setCreateError("");
+    setIsSuccess(false);
+    setSuccessMessage("");
   };
 
   const handleDistributionChange = (id, field, value) => {
@@ -65,7 +63,9 @@ const Payroll = () => {
       )
     );
     setError("");
+    setCreateError("");
     setIsSuccess(false);
+    setSuccessMessage("");
   };
 
   const handleAddDistribution = () => {
@@ -84,18 +84,48 @@ const Payroll = () => {
     }
   };
 
+  const copyToClipboard = async (text) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch (err) {
+      console.error("Failed to copy:", err);
+    }
+  };
+
   const handleSubmit = async () => {
-    // Placeholder for submit functionality
     try {
       setIsLoading(true);
       setError("");
-      
-      // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 1500));
-      
+      setCreateError("");
+      setIsSuccess(false);
+      setSuccessMessage("");
+
+      // First create a new payroll contract
+      const result = await createPayroll();
+
+      if (!result.payrollId) {
+        throw new Error("Failed to create payroll contract");
+      }
+
+      // Then add each employee
+      for (const dist of distributions) {
+        const amountInMist = Math.floor(parseFloat(dist.amount) * 1e9);
+        await addEmployee(result.payrollId, dist.address, amountInMist);
+      }
+
+      // Finally process payment for each employee
+      for (const dist of distributions) {
+        await processPayment(result.payrollId, dist.address);
+      }
+
       setIsSuccess(true);
+      setSuccessMessage(
+        "Payroll created, employees added, and payments processed successfully!"
+      );
     } catch (err) {
-      setError("Failed to process distribution");
+      setError(err.message);
     } finally {
       setIsLoading(false);
     }
@@ -103,7 +133,6 @@ const Payroll = () => {
 
   return (
     <div>
-    
       <div className="mt-6 md:mt-10 max-w-7xl mx-auto">
         <div className="flex flex-col md:grid md:grid-cols-12 gap-4 md:gap-8">
           {/* Left Panel - Distribution Form */}
@@ -115,7 +144,9 @@ const Payroll = () => {
                 <button
                   className={cn(
                     "flex-1 sm:flex-none px-4 md:px-6 py-2 md:py-3 text-sm rounded-full transition-all",
-                    mode === "single" ? "bg-primary text-primary-foreground" : "text-muted-foreground"
+                    mode === "single"
+                      ? "bg-primary text-primary-foreground"
+                      : "text-muted-foreground"
                   )}
                   onClick={() => handleModeToggle("single")}
                   disabled={isLoading}
@@ -138,16 +169,42 @@ const Payroll = () => {
             </div>
 
             {/* Alerts */}
-            {error && (
+            {(error || createError) && (
               <Alert variant="destructive" className="mb-4">
-                <AlertDescription>{error}</AlertDescription>
+                <AlertDescription>{error || createError}</AlertDescription>
               </Alert>
             )}
 
             {isSuccess && (
               <Alert className="mb-4 bg-green-50 border-green-200">
                 <AlertDescription className="text-green-800">
-                  Distribution processed successfully!
+                  <div className="flex flex-col gap-3">
+                    <div className="flex items-center gap-2">
+                      <span className="text-green-600">✓</span>
+                      <span className="font-medium">{successMessage}</span>
+                    </div>
+
+                    {payrollId && (
+                      <div className="bg-white rounded-lg p-3 border border-green-200">
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="text-sm font-medium text-gray-700">
+                            Payroll ID:
+                          </span>
+                          <button
+                            onClick={() => copyToClipboard(payrollId)}
+                            className="flex items-center gap-1 px-2 py-1 text-xs bg-gray-100 hover:bg-gray-200 rounded transition-colors"
+                            title="Copy payroll ID"
+                          >
+                            <Copy className="w-3 h-3" />
+                            {copied ? "Copied!" : "Copy"}
+                          </button>
+                        </div>
+                        <div className="text-xs text-gray-600 break-all mb-2">
+                          {payrollId}
+                        </div>
+                      </div>
+                    )}
+                  </div>
                 </AlertDescription>
               </Alert>
             )}
@@ -165,7 +222,7 @@ const Payroll = () => {
                         <div className="flex-1 sm:flex-[2]">
                           {dist.id === 1 && (
                             <label className="block text-sm text-muted-foreground mb-2">
-                              Recipient Address
+                              Employee Address
                             </label>
                           )}
                           <div className="bg-background rounded-xl md:rounded-2xl p-3 md:p-4 border-border border">
@@ -239,93 +296,22 @@ const Payroll = () => {
                     disabled={isLoading}
                   >
                     <Plus className="w-4 h-4 md:w-5 md:h-5" />
-                    <span>Add Recipient</span>
+                    <span>Add Employee</span>
                   </button>
                 )}
-              </div>
-
-              {/* Time Settings */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-6 md:mt-8">
-                <div>
-                  <label className="block text-sm text-muted-foreground mb-2">
-                    Lock Time
-                  </label>
-                  <Popover>
-                    <PopoverTrigger asChild>
-                      <Button
-                        variant="outline"
-                        className={cn(
-                          "w-full justify-start text-left font-normal h-12 md:h-14 rounded-xl md:rounded-2xl",
-                          !lockTime && "text-muted-foreground"
-                        )}
-                        disabled={isLoading}
-                      >
-                        <CalendarIcon className="mr-2 h-4 w-4" />
-                        {lockTime ? (
-                          format(lockTime, "PPP")
-                        ) : (
-                          <span>Pick a date</span>
-                        )}
-                      </Button>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-auto p-0">
-                      <Calendar
-                        mode="single"
-                        selected={lockTime}
-                        onSelect={setLockTime}
-                        disabled={disabledDays}
-                        initialFocus
-                        fromDate={today}
-                      />
-                    </PopoverContent>
-                  </Popover>
-                </div>
-                <div>
-                  <label className="block text-sm text-muted-foreground mb-2">
-                    Dilute
-                  </label>
-                  <Popover>
-                    <PopoverTrigger asChild>
-                      <Button
-                        variant="outline"
-                        className={cn(
-                          "w-full justify-start text-left font-normal h-12 md:h-14 rounded-xl md:rounded-2xl",
-                          !dilute && "text-muted-foreground"
-                        )}
-                        disabled={isLoading}
-                      >
-                        <CalendarIcon className="mr-2 h-4 w-4" />
-                        {dilute ? (
-                          format(dilute, "PPP")
-                        ) : (
-                          <span>Pick a date</span>
-                        )}
-                      </Button>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-auto p-0">
-                      <Calendar
-                        mode="single"
-                        selected={dilute}
-                        disabled={disabledDays}
-                        onSelect={setDilute}
-                        initialFocus
-                      />
-                    </PopoverContent>
-                  </Popover>
-                </div>
               </div>
 
               <div className="mt-6 md:mt-8">
                 <div className="flex justify-between text-sm mb-4">
                   <span className="text-muted-foreground">Total Amount</span>
                   <span className="font-medium">
-                    {totalAmount.toFixed(2)} USDC
+                    {totalAmount.toFixed(2)} SUI
                   </span>
                 </div>
                 <button
                   className={cn(
                     "w-full bg-primary text-primary-foreground font-medium py-3 md:py-4 rounded-xl md:rounded-2xl transition-colors flex items-center justify-center gap-2",
-                    isLoading 
+                    isLoading
                       ? "opacity-75 cursor-not-allowed"
                       : "hover:bg-primary/90"
                   )}
@@ -335,12 +321,10 @@ const Payroll = () => {
                   {isLoading ? (
                     <>
                       <Loader2 className="w-4 h-4 md:w-5 md:h-5 animate-spin" />
-                      Processing Distribution...
+                      Processing Payroll...
                     </>
                   ) : (
-                    <>
-                    Submit
-                    </>
+                    "Process Payroll"
                   )}
                 </button>
               </div>
@@ -369,10 +353,14 @@ const Payroll = () => {
                   <p className="text-sm text-muted-foreground mb-1 md:mb-2">
                     Total Distributed
                   </p>
-                  <p className="text-2xl md:text-3xl font-medium">$5.2M</p>
+                  <p className="text-2xl md:text-3xl font-medium">
+                    {totalAmount.toFixed(2)} SUI
+                  </p>
                 </div>
                 <div className="w-8 h-8 md:w-10 md:h-10 rounded-full bg-primary flex items-center justify-center">
-                  <span className="text-primary-foreground text-base md:text-lg">↑</span>
+                  <span className="text-primary-foreground text-base md:text-lg">
+                    ↑
+                  </span>
                 </div>
               </div>
             </div>
@@ -388,14 +376,16 @@ const Payroll = () => {
 
               <div className="flex flex-col justify-between h-full relative z-10">
                 <div className="w-8 h-8 md:w-10 md:h-10 rounded-full bg-background flex items-center justify-center mb-8 md:mb-12">
-                  <span className="text-foreground text-base md:text-lg">$</span>
+                  <span className="text-foreground text-base md:text-lg">
+                    $
+                  </span>
                 </div>
                 <div>
                   <p className="mb-2 md:mb-3 text-primary-foreground">
                     Average Distribution
                   </p>
                   <div className="text-4xl md:text-5xl font-medium text-primary-foreground">
-                    $847
+                    {(totalAmount / distributions.length).toFixed(2)} SUI
                   </div>
                 </div>
               </div>
