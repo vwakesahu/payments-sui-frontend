@@ -20,6 +20,8 @@ import { useClaimVesting } from "@/hooks/useClaimVesting";
 const Vesting = () => {
   const [mode, setMode] = useState("create");
   const [copied, setCopied] = useState(false);
+  const [isSuccess, setIsSuccess] = useState(false);
+  const [successMessage, setSuccessMessage] = useState("");
 
   // Create vesting state
   const [vestingData, setVestingData] = useState({
@@ -60,6 +62,8 @@ const Vesting = () => {
       [field]: value,
     }));
     setCreateError("");
+    setIsSuccess(false);
+    setSuccessMessage("");
   };
 
   const handleClaimChange = (field, value) => {
@@ -68,12 +72,26 @@ const Vesting = () => {
       [field]: value,
     }));
     setClaimError("");
+    setIsSuccess(false);
+    setSuccessMessage("");
   };
 
   const handleModeToggle = (newMode) => {
+    // Clear all states when switching modes
     setMode(newMode);
     setCreateError("");
     setClaimError("");
+    setIsSuccess(false);
+    setSuccessMessage("");
+    setCopied(false);
+
+    // If switching to claim mode and we have a vesting ID, auto-fill it
+    if (newMode === "claim" && vestingId) {
+      setClaimData((prev) => ({
+        ...prev,
+        vestingId: vestingId,
+      }));
+    }
   };
 
   const copyToClipboard = async (text) => {
@@ -91,11 +109,21 @@ const Vesting = () => {
       try {
         setIsCreating(true);
         setCreateError("");
+        setIsSuccess(false);
+        setSuccessMessage("");
 
         const result = await createVesting(vestingData);
 
         if (result) {
-          // Success is handled by the hook
+          setIsSuccess(true);
+          setSuccessMessage("Vesting schedule created successfully!");
+          // If we have a vesting ID, update the claim data
+          if (result.vestingId) {
+            setClaimData((prev) => ({
+              ...prev,
+              vestingId: result.vestingId,
+            }));
+          }
         }
       } catch (err) {
         setCreateError(err.message);
@@ -106,11 +134,14 @@ const Vesting = () => {
       try {
         setIsClaiming(true);
         setClaimError("");
+        setIsSuccess(false);
+        setSuccessMessage("");
 
         const result = await claimVesting(claimData.vestingId);
 
         if (result) {
-          // Success is handled by the hook
+          setIsSuccess(true);
+          setSuccessMessage("Tokens claimed successfully!");
         }
       } catch (err) {
         setClaimError(err.message);
@@ -212,20 +243,16 @@ const Vesting = () => {
               </Alert>
             )}
 
-            {(createDigest || claimDigest) && (
+            {isSuccess && mode === "create" && (
               <Alert className="mb-4 bg-green-50 border-green-200">
                 <AlertDescription className="text-green-800">
                   <div className="flex flex-col gap-3">
                     <div className="flex items-center gap-2">
                       <span className="text-green-600">✓</span>
-                      <span className="font-medium">
-                        {mode === "create"
-                          ? "Vesting schedule created successfully!"
-                          : "Tokens claimed successfully!"}
-                      </span>
+                      <span className="font-medium">{successMessage}</span>
                     </div>
 
-                    {mode === "create" && vestingId && (
+                    {vestingId && (
                       <div className="bg-white rounded-lg p-3 border border-green-200">
                         <div className="flex items-center justify-between mb-2">
                           <span className="text-sm font-medium text-gray-700">
@@ -243,19 +270,31 @@ const Vesting = () => {
                         <div className="text-xs text-gray-600 break-all mb-2">
                           {vestingId}
                         </div>
+                        <div className="mt-2">
+                          <button
+                            onClick={() => {
+                              setClaimData((prev) => ({
+                                ...prev,
+                                vestingId: vestingId,
+                              }));
+                              setMode("claim");
+                            }}
+                            className="text-sm text-blue-600 hover:text-blue-800 underline transition-colors"
+                          >
+                            Switch to claim mode
+                          </button>
+                        </div>
                       </div>
                     )}
 
-                    {(createDigest || claimDigest) && (
+                    {createDigest && (
                       <div className="bg-white rounded-lg p-3 border border-green-200">
                         <div className="flex items-center justify-between mb-2">
                           <span className="text-sm font-medium text-gray-700">
-                            Transaction ID:
+                            Create Transaction ID:
                           </span>
                           <button
-                            onClick={() =>
-                              copyToClipboard(createDigest || claimDigest)
-                            }
+                            onClick={() => copyToClipboard(createDigest)}
                             className="flex items-center gap-1 px-2 py-1 text-xs bg-gray-100 hover:bg-gray-200 rounded transition-colors"
                             title="Copy transaction ID"
                           >
@@ -264,12 +303,53 @@ const Vesting = () => {
                           </button>
                         </div>
                         <div className="text-xs text-gray-600 break-all mb-2">
-                          {createDigest || claimDigest}
+                          {createDigest}
                         </div>
                         <a
-                          href={`https://suiscan.xyz/devnet/tx/${
-                            createDigest || claimDigest
-                          }`}
+                          href={`https://suiscan.xyz/devnet/tx/${createDigest}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-1 text-sm text-blue-600 hover:text-blue-800 underline transition-colors"
+                        >
+                          <ExternalLink className="w-3 h-3" />
+                          View on Sui Explorer
+                        </a>
+                      </div>
+                    )}
+                  </div>
+                </AlertDescription>
+              </Alert>
+            )}
+
+            {isSuccess && mode === "claim" && (
+              <Alert className="mb-4 bg-green-50 border-green-200">
+                <AlertDescription className="text-green-800">
+                  <div className="flex flex-col gap-3">
+                    <div className="flex items-center gap-2">
+                      <span className="text-green-600">✓</span>
+                      <span className="font-medium">{successMessage}</span>
+                    </div>
+
+                    {claimDigest && (
+                      <div className="bg-white rounded-lg p-3 border border-green-200">
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="text-sm font-medium text-gray-700">
+                            Claim Transaction ID:
+                          </span>
+                          <button
+                            onClick={() => copyToClipboard(claimDigest)}
+                            className="flex items-center gap-1 px-2 py-1 text-xs bg-gray-100 hover:bg-gray-200 rounded transition-colors"
+                            title="Copy transaction ID"
+                          >
+                            <Copy className="w-3 h-3" />
+                            {copied ? "Copied!" : "Copy"}
+                          </button>
+                        </div>
+                        <div className="text-xs text-gray-600 break-all mb-2">
+                          {claimDigest}
+                        </div>
+                        <a
+                          href={`https://suiscan.xyz/devnet/tx/${claimDigest}`}
                           target="_blank"
                           rel="noopener noreferrer"
                           className="inline-flex items-center gap-1 text-sm text-blue-600 hover:text-blue-800 underline transition-colors"
