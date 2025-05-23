@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from "react";
 import { Loader2, LogOutIcon } from "lucide-react";
 import {
+  createNetworkConfig,
   SuiClientProvider,
   WalletProvider,
   useCurrentAccount,
@@ -14,13 +15,17 @@ import ConnectWalletCard from "./WalletAuthClient";
 
 const queryClient = new QueryClient();
 
-// Configure network connections
-const networks = {
-  // mainnet: { url: getFullnodeUrl("mainnet") },
-  // testnet: { url: getFullnodeUrl("testnet") },
-  devnet: { url: getFullnodeUrl("devnet") },
-};
-
+// Configure network connections using createNetworkConfig
+const { networkConfig } = createNetworkConfig({
+  devnet: { 
+    url: getFullnodeUrl("devnet"),
+    variables: {
+      myMovePackageId: "0x02fb5b37f3f4be24cd4f0e90c8ee168919ab6f6ccad20a0baa26667e0d74cd5e"
+    }
+  },
+  testnet: { url: getFullnodeUrl("testnet") },
+  mainnet: { url: getFullnodeUrl("mainnet") },
+});
 
 const WalletInterface = ({ children }) => {
   const currentAccount = useCurrentAccount();
@@ -36,7 +41,6 @@ const WalletInterface = ({ children }) => {
     </>
   );
 };
-
 
 const ClientOnly = ({ children }) => {
   const [mounted, setMounted] = useState(false);
@@ -58,12 +62,11 @@ const ClientOnly = ({ children }) => {
   return children;
 };
 
-
 const Auth = ({ children }) => {
   return (
     <ClientOnly>
       <QueryClientProvider client={queryClient}>
-        <SuiClientProvider networks={networks} defaultNetwork="devnet">
+        <SuiClientProvider networks={networkConfig} defaultNetwork="devnet">
           <WalletProvider autoConnect={true}>
             <WalletInterface>{children}</WalletInterface>
           </WalletProvider>

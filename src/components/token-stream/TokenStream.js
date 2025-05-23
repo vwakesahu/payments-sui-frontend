@@ -12,39 +12,125 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import HeroHeader from "../HeroHeader";
+import {
+  useCurrentAccount,
+  useSignTransaction,
+  useSuiClient,
+} from "@mysten/dapp-kit";
+import { Transaction } from "@mysten/sui/transactions";
 
 const TokenStream = () => {
+  const account = useCurrentAccount();
+  const { mutateAsync: signTransaction } = useSignTransaction();
+  const suiClient = useSuiClient();
   const [mode, setMode] = useState("create");
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
-  
+
   // Create Stream Form State
   const [createStreamData, setCreateStreamData] = useState({
     recipientAddress: "",
     amountPerSecond: "",
     topupBalance: "",
   });
-  
+
   // Withdraw Tokens Form State
   const [withdrawData, setWithdrawData] = useState({
     creatorAddress: "",
     amountPerSecond: "",
   });
 
+  // HARDCODED FUNCTION - NO FORM CALCULATIONS
+  const createStreamHardcoded = async () => {
+    try {
+      if (!account) {
+        throw new Error("Please connect your wallet first");
+      }
+
+      console.log("=== HARDCODED TRANSACTION - NO CALCULATIONS ===");
+      const tx = new Transaction();
+
+      // COMPLETELY HARDCODED - NO FORM INPUT USED
+      const RECIPIENT = "0xf66ebd40671196ec784ac4d547563403986bbd33cfa3cdb28a17000bef3b4c0e";
+      const START_TIME = 0;
+      const END_TIME = 10;
+      const AMOUNT_MIST = 1000000000; // 1 SUI
+
+      console.log("Hardcoded values (NO calculations):", {
+        recipient: RECIPIENT,
+        startTime: START_TIME,
+        endTime: END_TIME,
+        amount: AMOUNT_MIST,
+      });
+
+      // Verify these are integers
+      console.log("Are all values integers?", {
+        startTime: Number.isInteger(START_TIME),
+        endTime: Number.isInteger(END_TIME),
+        amount: Number.isInteger(AMOUNT_MIST),
+      });
+
+      // Create coin - this is the only calculation allowed
+      const [coin] = tx.splitCoins(tx.gas, [AMOUNT_MIST]);
+
+      // Transaction with hardcoded integers
+      tx.moveCall({
+        target: `0xdebe630104899d2488485b82e953b02a4e8d95775f152dbd6fd6e7b91eb9ba8e::streaming::create_stream_entry`,
+        typeArguments: ["0x2::sui::SUI"],
+        arguments: [
+          coin,
+          tx.pure.address(RECIPIENT),    // Use tx.pure.address() format
+          tx.pure.u64(START_TIME),       // 0
+          tx.pure.u64(END_TIME),         // 10  
+          tx.object("0x6"),
+        ],
+      });
+
+      console.log("Signing hardcoded transaction...");
+
+      const { bytes, signature, reportTransactionEffects } = await signTransaction({
+        transaction: tx,
+      });
+
+      console.log("Executing hardcoded transaction...");
+
+      const result = await suiClient.executeTransactionBlock({
+        transactionBlock: bytes,
+        signature,
+        options: {
+          showEffects: true,
+          showObjectChanges: true,
+          showRawEffects: true,
+        },
+      });
+
+      if (reportTransactionEffects && result.rawEffects) {
+        await reportTransactionEffects(result.rawEffects);
+      }
+
+      console.log("SUCCESS: Hardcoded transaction completed:", result);
+      return result;
+      
+    } catch (error) {
+      console.error("HARDCODED transaction failed:", error);
+      throw error;
+    }
+  };
+
   const handleCreateStreamChange = (field, value) => {
-    setCreateStreamData(prev => ({
+    setCreateStreamData((prev) => ({
       ...prev,
-      [field]: value
+      [field]: value,
     }));
     setError("");
     setIsSuccess(false);
   };
 
   const handleWithdrawChange = (field, value) => {
-    setWithdrawData(prev => ({
+    setWithdrawData((prev) => ({
       ...prev,
-      [field]: value
+      [field]: value,
     }));
     setError("");
     setIsSuccess(false);
@@ -56,14 +142,111 @@ const TokenStream = () => {
     setIsSuccess(false);
   };
 
+  const createStream = async (
+    recipientAddress,
+    amountPerSecond,
+    topupBalance
+  ) => {
+    try {
+      if (!account) {
+        throw new Error("Please connect your wallet first");
+      }
+
+      console.log("Creating transaction...");
+      const tx = new Transaction();
+
+      // Convert amount per second to a smaller unit (e.g., from tokens to smallest unit)
+      const amountPerSecondInSmallestUnit = Math.floor(
+        parseFloat(amountPerSecond) * 1e9
+      ); // Assuming 9 decimals
+      const topupBalanceInSmallestUnit = Math.floor(
+        parseFloat(topupBalance) * 1e9
+      );
+
+      // Get current timestamp
+      const currentTime = Math.floor(Date.now() / 1000);
+      const endTime =
+        currentTime +
+        topupBalanceInSmallestUnit / amountPerSecondInSmallestUnit;
+
+      console.log("Transaction parameters:", {
+        amountPerSecondInSmallestUnit,
+        recipientAddress,
+        currentTime,
+        endTime,
+      });
+
+      // Create the stream
+      tx.moveCall({
+        target: `0x02fb5b37f3f4be24cd4f0e90c8ee168919ab6f6ccad20a0baa26667e0d74cd5e::streaming::create_stream_entry`,
+        arguments: [
+          tx.pure.u64(amountPerSecondInSmallestUnit), // amount - specify as u64
+          tx.pure.address(recipientAddress), // recipient - specify as address
+          tx.pure.u64(currentTime), // start_time - specify as u64
+          tx.pure.u64(endTime), // end_time - specify as u64
+          tx.object("0x6"), // clock object
+        ],
+      });
+
+      console.log("Signing transaction...");
+      
+      // Sign the transaction (this bypasses the network config issue)
+      const { bytes, signature, reportTransactionEffects } = await signTransaction({
+        transaction: tx,
+      });
+
+      console.log("Executing signed transaction...");
+      
+      // Execute the signed transaction directly through the client
+      const result = await suiClient.executeTransactionBlock({
+        transactionBlock: bytes,
+        signature,
+        options: {
+          showEffects: true,
+          showObjectChanges: true,
+          showRawEffects: true,
+        },
+      });
+
+      // Report effects back to wallet (important for wallet state sync)
+      if (reportTransactionEffects && result.rawEffects) {
+        await reportTransactionEffects(result.rawEffects);
+      }
+
+      console.log("Transaction result:", result);
+      return result;
+    } catch (error) {
+      console.error("Error creating stream:", error);
+      
+      // More specific error handling
+      if (error.message.includes("NetworkConfig")) {
+        throw new Error("Network configuration error. Please ensure your wallet is connected to Devnet.");
+      } else if (error.message.includes("Insufficient")) {
+        throw new Error("Insufficient funds. Please ensure you have enough SUI tokens for gas fees.");
+      } else if (error.message.includes("pure")) {
+        throw new Error("Transaction parameter error. Please check your input values.");
+      }
+      
+      throw error;
+    }
+  };
+
   const handleSubmit = async () => {
     if (mode === "create") {
-      // Form validation for create stream
-      if (!createStreamData.recipientAddress || 
-          !createStreamData.amountPerSecond || 
-          !createStreamData.topupBalance) {
-        setError("Please fill all fields");
-        return;
+      try {
+        setIsLoading(true);
+        setError("");
+
+        console.log("=== USING HARDCODED VALUES - IGNORING FORM ===");
+        const result = await createStreamHardcoded(); // Call the hardcoded function
+
+        if (result) {
+          setIsSuccess(true);
+        }
+      } catch (err) {
+        setError("Failed to create token stream: " + err.message);
+      } finally {
+        setIsLoading(false);
       }
     } else {
       // Form validation for withdraw
@@ -71,51 +254,19 @@ const TokenStream = () => {
         setError("Please fill all fields");
         return;
       }
-    }
-
-    try {
-      setIsLoading(true);
-      setError("");
-      
-      // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 1500));
-      
-      setIsSuccess(true);
-    } catch (err) {
-      setError(mode === "create" ? "Failed to create token stream" : "Failed to withdraw tokens");
-    } finally {
-      setIsLoading(false);
+      // Withdraw functionality not implemented yet
+      setError("Withdraw functionality coming soon!");
     }
   };
 
-  // Calculate estimated stream information based on input data
+  // Calculate estimated stream information based on hardcoded values for display
   const calculateStreamInfo = () => {
-    if (!createStreamData.amountPerSecond || !createStreamData.topupBalance) {
-      return null;
-    }
-    
-    const ratePerSecond = parseFloat(createStreamData.amountPerSecond);
-    const balance = parseFloat(createStreamData.topupBalance);
-    
-    if (isNaN(ratePerSecond) || isNaN(balance) || ratePerSecond === 0) {
-      return null;
-    }
-    
-    const durationInSeconds = balance / ratePerSecond;
-    const days = Math.floor(durationInSeconds / 86400);
-    const hours = Math.floor((durationInSeconds % 86400) / 3600);
-    const minutes = Math.floor((durationInSeconds % 3600) / 60);
-    
-    let duration = "";
-    if (days > 0) duration += `${days}d `;
-    if (hours > 0) duration += `${hours}h `;
-    if (minutes > 0) duration += `${minutes}m`;
-    
+    // Since we're using hardcoded values, show hardcoded info
     return {
-      durationInSeconds,
-      formattedDuration: duration.trim() || "< 1m",
-      ratePerDay: ratePerSecond * 86400,
-      balance
+      durationInSeconds: 10,
+      formattedDuration: "10 seconds",
+      ratePerDay: 86400, // 1 SUI per second * 86400 seconds = 86400 SUI per day
+      balance: 1, // 1 SUI
     };
   };
 
@@ -123,7 +274,7 @@ const TokenStream = () => {
 
   return (
     <div>
-     <HeroHeader />
+      <HeroHeader />
       <div className="mt-6 md:mt-10 max-w-7xl px-4 pb-10 md:pb-0 mx-auto md:px-8">
         <div className="flex flex-col md:grid md:grid-cols-12 gap-4 md:gap-8">
           {/* Left Panel - Form */}
@@ -135,7 +286,9 @@ const TokenStream = () => {
                 <button
                   className={cn(
                     "flex-1 sm:flex-none px-4 md:px-6 py-2 md:py-3 text-sm rounded-full transition-all",
-                    mode === "create" ? "bg-primary text-primary-foreground" : "text-muted-foreground"
+                    mode === "create"
+                      ? "bg-primary text-primary-foreground"
+                      : "text-muted-foreground"
                   )}
                   onClick={() => handleModeToggle("create")}
                   disabled={isLoading}
@@ -167,12 +320,20 @@ const TokenStream = () => {
             {isSuccess && (
               <Alert className="mb-4 bg-green-50 border-green-200">
                 <AlertDescription className="text-green-800">
-                  {mode === "create" 
+                  {mode === "create"
                     ? "Token stream created successfully!"
                     : "Tokens withdrawn successfully!"}
                 </AlertDescription>
               </Alert>
             )}
+
+            {/* Hardcoded Values Notice */}
+            <Alert className="mb-4 bg-blue-50 border-blue-200">
+              <AlertDescription className="text-blue-800">
+                <strong>Testing Mode:</strong> Using hardcoded values for testing. 
+                Stream: 1 SUI for 10 seconds to test recipient. Form inputs are currently ignored.
+              </AlertDescription>
+            </Alert>
 
             {/* Form Content */}
             <div className="flex-1 flex flex-col">
@@ -191,7 +352,10 @@ const TokenStream = () => {
                           type="text"
                           value={createStreamData.recipientAddress}
                           onChange={(e) =>
-                            handleCreateStreamChange("recipientAddress", e.target.value)
+                            handleCreateStreamChange(
+                              "recipientAddress",
+                              e.target.value
+                            )
                           }
                           placeholder="0x0C2E8090a89A0af9"
                           className="w-full text-sm md:text-base bg-transparent outline-none"
@@ -213,20 +377,30 @@ const TokenStream = () => {
                           type="number"
                           value={createStreamData.amountPerSecond}
                           onChange={(e) =>
-                            handleCreateStreamChange("amountPerSecond", e.target.value)
+                            handleCreateStreamChange(
+                              "amountPerSecond",
+                              e.target.value
+                            )
                           }
                           placeholder="0.001"
                           className="w-full text-sm md:text-base bg-transparent outline-none"
                           disabled={isLoading}
                         />
-                        <span className="text-sm text-muted-foreground">tokens/sec</span>
+                        <span className="text-sm text-muted-foreground">
+                          tokens/sec
+                        </span>
                       </div>
                     </div>
-                    {createStreamData.amountPerSecond && !isNaN(parseFloat(createStreamData.amountPerSecond)) && (
-                      <p className="text-xs text-muted-foreground mt-1">
-                        ≈ {(parseFloat(createStreamData.amountPerSecond) * 86400).toFixed(3)} tokens per day
-                      </p>
-                    )}
+                    {createStreamData.amountPerSecond &&
+                      !isNaN(parseFloat(createStreamData.amountPerSecond)) && (
+                        <p className="text-xs text-muted-foreground mt-1">
+                          ≈{" "}
+                          {(
+                            parseFloat(createStreamData.amountPerSecond) * 86400
+                          ).toFixed(3)}{" "}
+                          tokens per day
+                        </p>
+                      )}
                   </div>
 
                   {/* Topup Balance */}
@@ -241,13 +415,18 @@ const TokenStream = () => {
                           type="number"
                           value={createStreamData.topupBalance}
                           onChange={(e) =>
-                            handleCreateStreamChange("topupBalance", e.target.value)
+                            handleCreateStreamChange(
+                              "topupBalance",
+                              e.target.value
+                            )
                           }
                           placeholder="1000"
                           className="w-full text-sm md:text-base bg-transparent outline-none"
                           disabled={isLoading}
                         />
-                        <span className="text-sm text-muted-foreground">tokens</span>
+                        <span className="text-sm text-muted-foreground">
+                          tokens
+                        </span>
                       </div>
                     </div>
                   </div>
@@ -267,7 +446,10 @@ const TokenStream = () => {
                           type="text"
                           value={withdrawData.creatorAddress}
                           onChange={(e) =>
-                            handleWithdrawChange("creatorAddress", e.target.value)
+                            handleWithdrawChange(
+                              "creatorAddress",
+                              e.target.value
+                            )
                           }
                           placeholder="0x0C2E8090a89A0af9"
                           className="w-full text-sm md:text-base bg-transparent outline-none"
@@ -289,13 +471,18 @@ const TokenStream = () => {
                           type="number"
                           value={withdrawData.amountPerSecond}
                           onChange={(e) =>
-                            handleWithdrawChange("amountPerSecond", e.target.value)
+                            handleWithdrawChange(
+                              "amountPerSecond",
+                              e.target.value
+                            )
                           }
                           placeholder="0.001"
                           className="w-full text-sm md:text-base bg-transparent outline-none"
                           disabled={isLoading}
                         />
-                        <span className="text-sm text-muted-foreground">tokens/sec</span>
+                        <span className="text-sm text-muted-foreground">
+                          tokens/sec
+                        </span>
                       </div>
                     </div>
                   </div>
@@ -316,7 +503,9 @@ const TokenStream = () => {
                   {isLoading ? (
                     <>
                       <Loader2 className="w-4 h-4 md:w-5 md:h-5 animate-spin" />
-                      {mode === "create" ? "Creating Stream..." : "Withdrawing Tokens..."}
+                      {mode === "create"
+                        ? "Creating Stream..."
+                        : "Withdrawing Tokens..."}
                     </>
                   ) : (
                     <>
@@ -358,30 +547,44 @@ const TokenStream = () => {
               <div className="flex items-start justify-between relative z-10">
                 <div>
                   <p className="text-sm text-muted-foreground mb-1 md:mb-2">
-                    {mode === "create" ? "Stream Duration" : "Available to Withdraw"}
+                    {mode === "create"
+                      ? "Stream Duration"
+                      : "Available to Withdraw"}
                   </p>
                   <p className="text-2xl md:text-3xl font-medium">
-                    {mode === "create" 
-                      ? (streamInfo ? streamInfo.formattedDuration : "—") 
+                    {mode === "create"
+                      ? streamInfo
+                        ? streamInfo.formattedDuration
+                        : "10 seconds"
                       : "—"}
                   </p>
                 </div>
                 <div className="w-8 h-8 md:w-10 md:h-10 rounded-full bg-primary flex items-center justify-center">
-                  <span className="text-primary-foreground text-base md:text-lg">↑</span>
+                  <span className="text-primary-foreground text-base md:text-lg">
+                    ↑
+                  </span>
                 </div>
               </div>
-              
+
               {mode === "create" && (
                 <div className="mt-6 space-y-4">
                   {streamInfo ? (
                     <>
                       <div>
-                        <p className="text-sm text-muted-foreground">Rate per Day</p>
-                        <p className="text-lg font-medium">{streamInfo.ratePerDay.toFixed(4)} tokens</p>
+                        <p className="text-sm text-muted-foreground">
+                          Rate per Day
+                        </p>
+                        <p className="text-lg font-medium">
+                          {streamInfo.ratePerDay.toFixed(4)} tokens
+                        </p>
                       </div>
                       <div>
-                        <p className="text-sm text-muted-foreground">Total Deposit</p>
-                        <p className="text-lg font-medium">{streamInfo.balance} tokens</p>
+                        <p className="text-sm text-muted-foreground">
+                          Total Deposit
+                        </p>
+                        <p className="text-lg font-medium">
+                          {streamInfo.balance} tokens
+                        </p>
                       </div>
                     </>
                   ) : (
@@ -400,7 +603,7 @@ const TokenStream = () => {
                 </div>
               )}
             </div>
-            
+
             {/* Bottom Info Card */}
             <div className="bg-[#00C670]/70 rounded-[20px] md:rounded-[35px] p-6 md:p-8 relative overflow-hidden">
               <div className="absolute inset-0 pointer-events-none">
@@ -413,28 +616,22 @@ const TokenStream = () => {
 
               <div className="flex flex-col justify-between h-full relative z-10">
                 <div className="w-8 h-8 md:w-10 md:h-10 rounded-full bg-background flex items-center justify-center mb-8 md:mb-12">
-                  <span className="text-foreground text-base md:text-lg">$</span>
+                  <span className="text-foreground text-base md:text-lg">
+                    $
+                  </span>
                 </div>
                 <div>
                   <p className="mb-2 md:mb-3 text-white">
                     {mode === "create" ? "Streaming Rate" : "Withdraw Amount"}
                   </p>
                   <div className="text-4xl md:text-5xl font-medium text-white">
-                    {mode === "create" ? (
-                      createStreamData.amountPerSecond ? (
-                        `${parseFloat(createStreamData.amountPerSecond).toFixed(
-                          parseFloat(createStreamData.amountPerSecond) < 0.01 ? 6 : 4
-                        )}/sec`
-                      ) : (
-                        "..."
-                      )
-                    ) : (
-                      "..."
-                    )}
+                    {mode === "create"
+                      ? "1 SUI/10sec"
+                      : "..."}
                   </div>
-                  {mode === "create" && createStreamData.amountPerSecond && (
+                  {mode === "create" && (
                     <p className="text-white/80 text-sm mt-2">
-                      Continuous payment stream
+                      Hardcoded test stream (10 seconds duration)
                     </p>
                   )}
                 </div>
