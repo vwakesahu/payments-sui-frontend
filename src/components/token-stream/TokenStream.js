@@ -16,6 +16,7 @@ import { cn } from "@/lib/utils";
 import HeroHeader from "../HeroHeader";
 import { useCurrentAccount } from "@mysten/dapp-kit";
 import { useCreateStream } from "@/hooks/useCreateStream";
+import { useWithdrawStream } from "@/hooks/useWithdrawStream";
 
 const TokenStream = () => {
   const account = useCurrentAccount();
@@ -25,12 +26,22 @@ const TokenStream = () => {
 
   const {
     createStream,
-    isLoading,
-    error,
-    transactionDigest,
-    setError,
-    setIsLoading,
+    isLoading: isCreating,
+    error: createError,
+    transactionDigest: createDigest,
+    streamId,
+    setError: setCreateError,
+    setIsLoading: setIsCreating,
   } = useCreateStream();
+
+  const {
+    withdrawFromStream,
+    isLoading: isWithdrawing,
+    error: withdrawError,
+    transactionDigest: withdrawDigest,
+    setError: setWithdrawError,
+    setIsLoading: setIsWithdrawing,
+  } = useWithdrawStream();
 
   // Create Stream Form State
   const [createStreamData, setCreateStreamData] = useState({
@@ -41,8 +52,7 @@ const TokenStream = () => {
 
   // Withdraw Tokens Form State
   const [withdrawData, setWithdrawData] = useState({
-    creatorAddress: "",
-    amountPerSecond: "",
+    streamId: "", // Remove hardcoded stream ID
   });
 
   // Auto-populate recipient address when account is available
@@ -71,7 +81,7 @@ const TokenStream = () => {
       ...prev,
       [field]: value,
     }));
-    setError("");
+    setCreateError("");
     setIsSuccess(false);
   };
 
@@ -80,36 +90,63 @@ const TokenStream = () => {
       ...prev,
       [field]: value,
     }));
-    setError("");
+    setWithdrawError("");
     setIsSuccess(false);
   };
 
   const handleModeToggle = (newMode) => {
     setMode(newMode);
-    setError("");
+    setCreateError("");
+    setWithdrawError("");
     setIsSuccess(false);
   };
 
   const handleSubmit = async () => {
     if (mode === "create") {
       try {
-        setIsLoading(true);
-        setError("");
+        setIsCreating(true);
+        setCreateError("");
         setIsSuccess(false);
 
         const result = await createStream(createStreamData);
 
         if (result) {
           setIsSuccess(true);
+          // If we have a stream ID, switch to withdraw mode and pre-fill it
+          if (result.streamId) {
+            console.log(
+              "Setting withdraw data with stream ID:",
+              result.streamId
+            );
+            setWithdrawData((prev) => ({
+              ...prev,
+              streamId: result.streamId,
+            }));
+            // Don't automatically switch to withdraw mode
+            // setMode("withdraw");
+          }
         }
       } catch (err) {
-        setError(err.message);
+        setCreateError(err.message);
       } finally {
-        setIsLoading(false);
+        setIsCreating(false);
       }
     } else {
-      // Withdraw functionality not implemented yet
-      setError("Withdraw functionality coming soon!");
+      try {
+        setIsWithdrawing(true);
+        setWithdrawError("");
+        setIsSuccess(false);
+
+        const result = await withdrawFromStream(withdrawData.streamId);
+
+        if (result) {
+          setIsSuccess(true);
+        }
+      } catch (err) {
+        setWithdrawError(err.message);
+      } finally {
+        setIsWithdrawing(false);
+      }
     }
   };
 
@@ -165,7 +202,7 @@ const TokenStream = () => {
                       : "text-muted-foreground"
                   )}
                   onClick={() => handleModeToggle("create")}
-                  disabled={isLoading}
+                  disabled={isCreating}
                 >
                   Create Stream
                 </button>
@@ -177,7 +214,7 @@ const TokenStream = () => {
                       : "text-muted-foreground"
                   )}
                   onClick={() => handleModeToggle("withdraw")}
-                  disabled={isLoading}
+                  disabled={isWithdrawing}
                 >
                   Withdraw Tokens
                 </button>
@@ -185,9 +222,11 @@ const TokenStream = () => {
             </div>
 
             {/* Alerts */}
-            {error && (
+            {(createError || withdrawError) && (
               <Alert variant="destructive" className="mb-4">
-                <AlertDescription>{error}</AlertDescription>
+                <AlertDescription>
+                  {createError || withdrawError}
+                </AlertDescription>
               </Alert>
             )}
 
@@ -204,14 +243,55 @@ const TokenStream = () => {
                       </span>
                     </div>
 
-                    {transactionDigest && (
+                    {mode === "create" && (
+                      <div className="bg-white rounded-lg p-3 border border-green-200">
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="text-sm font-medium text-gray-700">
+                            Stream ID:
+                          </span>
+                          {streamId && (
+                            <button
+                              onClick={() => copyToClipboard(streamId)}
+                              className="flex items-center gap-1 px-2 py-1 text-xs bg-gray-100 hover:bg-gray-200 rounded transition-colors"
+                              title="Copy stream ID"
+                            >
+                              <Copy className="w-3 h-3" />
+                              {copied ? "Copied!" : "Copy"}
+                            </button>
+                          )}
+                        </div>
+                        <div className="text-xs text-gray-600 break-all mb-2">
+                          {streamId || "Extracting stream ID..."}
+                        </div>
+                        {streamId && (
+                          <div className="mt-2">
+                            <button
+                              onClick={() => {
+                                setWithdrawData((prev) => ({
+                                  ...prev,
+                                  streamId: streamId,
+                                }));
+                                setMode("withdraw");
+                              }}
+                              className="text-sm text-blue-600 hover:text-blue-800 underline transition-colors"
+                            >
+                              Switch to withdraw mode
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {(createDigest || withdrawDigest) && (
                       <div className="bg-white rounded-lg p-3 border border-green-200">
                         <div className="flex items-center justify-between mb-2">
                           <span className="text-sm font-medium text-gray-700">
                             Transaction ID:
                           </span>
                           <button
-                            onClick={() => copyToClipboard(transactionDigest)}
+                            onClick={() =>
+                              copyToClipboard(createDigest || withdrawDigest)
+                            }
                             className="flex items-center gap-1 px-2 py-1 text-xs bg-gray-100 hover:bg-gray-200 rounded transition-colors"
                             title="Copy transaction ID"
                           >
@@ -221,11 +301,13 @@ const TokenStream = () => {
                         </div>
 
                         <div className="text-xs text-gray-600 break-all mb-2">
-                          {transactionDigest}
+                          {createDigest || withdrawDigest}
                         </div>
 
                         <a
-                          href={`https://suiscan.xyz/devnet/tx/${transactionDigest}`}
+                          href={`https://suiscan.xyz/devnet/tx/${
+                            createDigest || withdrawDigest
+                          }`}
                           target="_blank"
                           rel="noopener noreferrer"
                           className="inline-flex items-center gap-1 text-sm text-blue-600 hover:text-blue-800 underline transition-colors"
@@ -264,7 +346,7 @@ const TokenStream = () => {
                           }
                           placeholder="0x0C2E8090a89A0af9"
                           className="w-full text-sm md:text-base bg-transparent outline-none"
-                          disabled={isLoading}
+                          disabled={isCreating}
                         />
                       </div>
                     </div>
@@ -289,7 +371,7 @@ const TokenStream = () => {
                           }
                           placeholder="0.001"
                           className="w-full text-sm md:text-base bg-transparent outline-none"
-                          disabled={isLoading}
+                          disabled={isCreating}
                         />
                         <span className="text-sm text-muted-foreground">
                           tokens/sec
@@ -327,7 +409,7 @@ const TokenStream = () => {
                           }
                           placeholder="1000"
                           className="w-full text-sm md:text-base bg-transparent outline-none"
-                          disabled={isLoading}
+                          disabled={isCreating}
                         />
                         <span className="text-sm text-muted-foreground">
                           tokens
@@ -339,55 +421,24 @@ const TokenStream = () => {
               ) : (
                 // WITHDRAW TOKENS FORM
                 <div className="space-y-4 md:space-y-6">
-                  {/* Creator Address */}
+                  {/* Stream ID */}
                   <div>
                     <label className="block text-sm text-muted-foreground mb-2">
-                      Creator Address
+                      Stream ID
                     </label>
                     <div className="bg-background rounded-xl md:rounded-2xl p-3 md:p-4 border-border border">
                       <div className="flex items-center gap-2">
                         <User className="w-4 h-4 text-muted-foreground" />
                         <input
                           type="text"
-                          value={withdrawData.creatorAddress}
+                          value={withdrawData.streamId}
                           onChange={(e) =>
-                            handleWithdrawChange(
-                              "creatorAddress",
-                              e.target.value
-                            )
+                            handleWithdrawChange("streamId", e.target.value)
                           }
-                          placeholder="0x0C2E8090a89A0af9"
+                          placeholder="0x189c51d794cdd150e7b40e7bf837d4455c59298d7c252c66457b3e9358640683"
                           className="w-full text-sm md:text-base bg-transparent outline-none"
-                          disabled={isLoading}
+                          disabled={isWithdrawing}
                         />
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Amount Per Second */}
-                  <div>
-                    <label className="block text-sm text-muted-foreground mb-2">
-                      Amount to Stream (per second)
-                    </label>
-                    <div className="bg-background rounded-xl md:rounded-2xl p-3 md:p-4 border-border border">
-                      <div className="flex items-center gap-2">
-                        <Clock className="w-4 h-4 text-muted-foreground" />
-                        <input
-                          type="number"
-                          value={withdrawData.amountPerSecond}
-                          onChange={(e) =>
-                            handleWithdrawChange(
-                              "amountPerSecond",
-                              e.target.value
-                            )
-                          }
-                          placeholder="0.001"
-                          className="w-full text-sm md:text-base bg-transparent outline-none"
-                          disabled={isLoading}
-                        />
-                        <span className="text-sm text-muted-foreground">
-                          tokens/sec
-                        </span>
                       </div>
                     </div>
                   </div>
@@ -398,14 +449,14 @@ const TokenStream = () => {
                 <button
                   className={cn(
                     "w-full bg-primary text-primary-foreground font-medium py-3 md:py-4 rounded-xl md:rounded-2xl transition-colors flex items-center justify-center gap-2",
-                    isLoading
+                    isCreating || isWithdrawing
                       ? "opacity-75 cursor-not-allowed"
                       : "hover:bg-primary/90"
                   )}
                   onClick={handleSubmit}
-                  disabled={isLoading}
+                  disabled={isCreating || isWithdrawing}
                 >
-                  {isLoading ? (
+                  {isCreating || isWithdrawing ? (
                     <>
                       <Loader2 className="w-4 h-4 md:w-5 md:h-5 animate-spin" />
                       {mode === "create"
@@ -503,7 +554,8 @@ const TokenStream = () => {
               {mode === "withdraw" && (
                 <div className="mt-6 space-y-4">
                   <p className="text-muted-foreground italic">
-                    Enter creator address to see available tokens
+                    Enter the stream ID you want to withdraw from. You must be
+                    the recipient of the stream.
                   </p>
                 </div>
               )}

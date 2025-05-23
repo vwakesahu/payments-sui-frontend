@@ -14,6 +14,7 @@ export const useCreateStream = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
   const [transactionDigest, setTransactionDigest] = useState("");
+  const [streamId, setStreamId] = useState("");
 
   const createStream = async (streamData) => {
     try {
@@ -135,12 +136,72 @@ export const useCreateStream = () => {
 
       console.log("SUCCESS: Form-based transaction completed:", result);
 
+      // Extract the created stream object ID from the transaction effects
+      let createdStreamId = "";
+
+      // Check object changes first
+      if (result.objectChanges) {
+        for (const change of result.objectChanges) {
+          if (
+            change.type === "created" &&
+            change.objectType &&
+            change.objectType.includes("streaming::Stream")
+          ) {
+            createdStreamId = change.objectId;
+            console.log(
+              "Found created stream ID in object changes:",
+              createdStreamId
+            );
+            break;
+          }
+        }
+      }
+
+      // If not found in object changes, check created objects
+      if (!createdStreamId && result.effects?.created) {
+        for (const created of result.effects.created) {
+          if (
+            created.reference &&
+            created.reference.objectType &&
+            created.reference.objectType.includes("streaming::Stream")
+          ) {
+            createdStreamId = created.reference.objectId;
+            console.log(
+              "Found created stream ID in created objects:",
+              createdStreamId
+            );
+            break;
+          }
+        }
+      }
+
+      // If still not found, try to find it in the raw effects
+      if (!createdStreamId && result.rawEffects) {
+        // Log the raw effects for debugging
+        console.log("Raw effects:", result.rawEffects);
+      }
+
+      if (createdStreamId) {
+        setStreamId(createdStreamId);
+        console.log("Set stream ID to:", createdStreamId);
+      } else {
+        console.warn("Could not find stream ID in transaction effects");
+        // Log the full result for debugging
+        console.log(
+          "Full transaction result:",
+          JSON.stringify(result, null, 2)
+        );
+      }
+
       // Store transaction digest
       if (result.digest) {
         setTransactionDigest(result.digest);
       }
 
-      return result;
+      return {
+        ...result,
+        streamId: createdStreamId,
+      };
     } catch (error) {
       console.error("Form-based transaction failed:", error);
       throw error;
@@ -152,6 +213,7 @@ export const useCreateStream = () => {
     isLoading,
     error,
     transactionDigest,
+    streamId,
     setError,
     setIsLoading,
   };
