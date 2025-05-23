@@ -5,13 +5,23 @@ import {
   BarChart3,
   Hourglass,
   Loader2,
+  Copy,
+  ExternalLink,
+  ArrowUpFromLine,
+  ArrowDownToLine,
 } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import HeroHeader from "../HeroHeader";
+import { useCreateVesting } from "@/hooks/useCreateVesting";
+import { useClaimVesting } from "@/hooks/useClaimVesting";
 
 const Vesting = () => {
+  const [mode, setMode] = useState("create");
+  const [copied, setCopied] = useState(false);
+
+  // Create vesting state
   const [vestingData, setVestingData] = useState({
     beneficiaryAddress: "",
     amount: "",
@@ -19,42 +29,94 @@ const Vesting = () => {
     releaseRate: "",
     period: "",
   });
-  const [error, setError] = useState("");
-  const [isLoading, setIsLoading] = useState(false);
-  const [isSuccess, setIsSuccess] = useState(false);
+
+  // Claim vesting state
+  const [claimData, setClaimData] = useState({
+    vestingId: "",
+  });
+
+  const {
+    createVesting,
+    isLoading: isCreating,
+    error: createError,
+    transactionDigest: createDigest,
+    vestingId,
+    setError: setCreateError,
+    setIsLoading: setIsCreating,
+  } = useCreateVesting();
+
+  const {
+    claimVesting,
+    isLoading: isClaiming,
+    error: claimError,
+    transactionDigest: claimDigest,
+    setError: setClaimError,
+    setIsLoading: setIsClaiming,
+  } = useClaimVesting();
 
   const handleVestingChange = (field, value) => {
     setVestingData((prev) => ({
       ...prev,
       [field]: value,
     }));
-    setError("");
-    setIsSuccess(false);
+    setCreateError("");
+  };
+
+  const handleClaimChange = (field, value) => {
+    setClaimData((prev) => ({
+      ...prev,
+      [field]: value,
+    }));
+    setClaimError("");
+  };
+
+  const handleModeToggle = (newMode) => {
+    setMode(newMode);
+    setCreateError("");
+    setClaimError("");
+  };
+
+  const copyToClipboard = async (text) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch (err) {
+      console.error("Failed to copy:", err);
+    }
   };
 
   const handleSubmit = async () => {
-    // Form validation
-    if (!vestingData.beneficiaryAddress || 
-        !vestingData.amount || 
-        !vestingData.cliff || 
-        !vestingData.releaseRate ||
-        !vestingData.period) {
-      setError("Please fill all fields");
-      return;
-    }
+    if (mode === "create") {
+      try {
+        setIsCreating(true);
+        setCreateError("");
 
-    try {
-      setIsLoading(true);
-      setError("");
-      
-      // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 1500));
-      
-      setIsSuccess(true);
-    } catch (err) {
-      setError("Failed to create vesting schedule");
-    } finally {
-      setIsLoading(false);
+        const result = await createVesting(vestingData);
+
+        if (result) {
+          // Success is handled by the hook
+        }
+      } catch (err) {
+        setCreateError(err.message);
+      } finally {
+        setIsCreating(false);
+      }
+    } else {
+      try {
+        setIsClaiming(true);
+        setClaimError("");
+
+        const result = await claimVesting(claimData.vestingId);
+
+        if (result) {
+          // Success is handled by the hook
+        }
+      } catch (err) {
+        setClaimError(err.message);
+      } finally {
+        setIsClaiming(false);
+      }
     }
   };
 
@@ -63,34 +125,43 @@ const Vesting = () => {
     const days = Math.floor(seconds / 86400);
     const hours = Math.floor((seconds % 86400) / 3600);
     const minutes = Math.floor((seconds % 3600) / 60);
-    
+
     let result = "";
-    if (days > 0) result += `${days} day${days > 1 ? 's' : ''} `;
-    if (hours > 0) result += `${hours} hour${hours > 1 ? 's' : ''} `;
-    if (minutes > 0) result += `${minutes} minute${minutes > 1 ? 's' : ''}`;
-    
+    if (days > 0) result += `${days} day${days > 1 ? "s" : ""} `;
+    if (hours > 0) result += `${hours} hour${hours > 1 ? "s" : ""} `;
+    if (minutes > 0) result += `${minutes} minute${minutes > 1 ? "s" : ""}`;
+
     return result.trim() || `${seconds} seconds`;
   };
 
   // Calculate estimated unlock based on input data
   const calculateUnlock = () => {
-    if (!vestingData.amount || !vestingData.releaseRate || !vestingData.period) {
+    if (
+      !vestingData.amount ||
+      !vestingData.releaseRate ||
+      !vestingData.period
+    ) {
       return null;
     }
-    
+
     const amount = parseFloat(vestingData.amount);
     const releaseRate = parseFloat(vestingData.releaseRate);
     const period = parseFloat(vestingData.period);
-    
-    if (isNaN(amount) || isNaN(releaseRate) || isNaN(period) || releaseRate === 0) {
+
+    if (
+      isNaN(amount) ||
+      isNaN(releaseRate) ||
+      isNaN(period) ||
+      releaseRate === 0
+    ) {
       return null;
     }
-    
+
     return {
       totalTime: period,
       formattedTime: formatTime(period),
       totalAmount: amount,
-      ratePerSecond: releaseRate
+      ratePerSecond: releaseRate,
     };
   };
 
@@ -103,168 +174,304 @@ const Vesting = () => {
         <div className="flex flex-col md:grid md:grid-cols-12 gap-4 md:gap-8">
           {/* Left Panel - Vesting Form */}
           <div className="w-full md:col-span-7 rounded-[20px] border bg-muted/30 md:rounded-[35px] p-4 md:p-8 flex flex-col">
-            {/* Title */}
-            <div className="mb-6 md:mb-8">
+            {/* Title & Toggle */}
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-6 md:mb-8 gap-4 sm:gap-0">
               <h2 className="text-xl md:text-2xl font-medium">Token Vesting</h2>
-              <p className="text-muted-foreground mt-2">Create a new token vesting schedule</p>
+              <div className="w-full sm:w-auto bg-background rounded-full inline-flex border">
+                <button
+                  className={cn(
+                    "flex-1 sm:flex-none px-4 md:px-6 py-2 md:py-3 text-sm rounded-full transition-all",
+                    mode === "create"
+                      ? "bg-primary text-primary-foreground"
+                      : "text-muted-foreground"
+                  )}
+                  onClick={() => handleModeToggle("create")}
+                  disabled={isCreating}
+                >
+                  Create Vesting
+                </button>
+                <button
+                  className={cn(
+                    "flex-1 sm:flex-none px-4 md:px-6 py-2 md:py-3 text-sm rounded-full transition-all",
+                    mode === "claim"
+                      ? "bg-primary text-primary-foreground"
+                      : "text-muted-foreground"
+                  )}
+                  onClick={() => handleModeToggle("claim")}
+                  disabled={isClaiming}
+                >
+                  Claim Tokens
+                </button>
+              </div>
             </div>
 
             {/* Alerts */}
-            {error && (
+            {(createError || claimError) && (
               <Alert variant="destructive" className="mb-4">
-                <AlertDescription>{error}</AlertDescription>
+                <AlertDescription>{createError || claimError}</AlertDescription>
               </Alert>
             )}
 
-            {isSuccess && (
+            {(createDigest || claimDigest) && (
               <Alert className="mb-4 bg-green-50 border-green-200">
                 <AlertDescription className="text-green-800">
-                  Vesting schedule created successfully!
+                  <div className="flex flex-col gap-3">
+                    <div className="flex items-center gap-2">
+                      <span className="text-green-600">✓</span>
+                      <span className="font-medium">
+                        {mode === "create"
+                          ? "Vesting schedule created successfully!"
+                          : "Tokens claimed successfully!"}
+                      </span>
+                    </div>
+
+                    {mode === "create" && vestingId && (
+                      <div className="bg-white rounded-lg p-3 border border-green-200">
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="text-sm font-medium text-gray-700">
+                            Vesting ID:
+                          </span>
+                          <button
+                            onClick={() => copyToClipboard(vestingId)}
+                            className="flex items-center gap-1 px-2 py-1 text-xs bg-gray-100 hover:bg-gray-200 rounded transition-colors"
+                            title="Copy vesting ID"
+                          >
+                            <Copy className="w-3 h-3" />
+                            {copied ? "Copied!" : "Copy"}
+                          </button>
+                        </div>
+                        <div className="text-xs text-gray-600 break-all mb-2">
+                          {vestingId}
+                        </div>
+                      </div>
+                    )}
+
+                    {(createDigest || claimDigest) && (
+                      <div className="bg-white rounded-lg p-3 border border-green-200">
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="text-sm font-medium text-gray-700">
+                            Transaction ID:
+                          </span>
+                          <button
+                            onClick={() =>
+                              copyToClipboard(createDigest || claimDigest)
+                            }
+                            className="flex items-center gap-1 px-2 py-1 text-xs bg-gray-100 hover:bg-gray-200 rounded transition-colors"
+                            title="Copy transaction ID"
+                          >
+                            <Copy className="w-3 h-3" />
+                            {copied ? "Copied!" : "Copy"}
+                          </button>
+                        </div>
+                        <div className="text-xs text-gray-600 break-all mb-2">
+                          {createDigest || claimDigest}
+                        </div>
+                        <a
+                          href={`https://suiscan.xyz/devnet/tx/${
+                            createDigest || claimDigest
+                          }`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-1 text-sm text-blue-600 hover:text-blue-800 underline transition-colors"
+                        >
+                          <ExternalLink className="w-3 h-3" />
+                          View on Sui Explorer
+                        </a>
+                      </div>
+                    )}
+                  </div>
                 </AlertDescription>
               </Alert>
             )}
 
             {/* Form Content */}
             <div className="flex-1 flex flex-col">
-              <div className="space-y-4 md:space-y-6">
-                {/* Beneficiary Address */}
-                <div>
-                  <label className="block text-sm text-muted-foreground mb-2">
-                    Beneficiary Address
-                  </label>
-                  <div className="bg-background rounded-xl md:rounded-2xl p-3 md:p-4 border-border border">
-                    <input
-                      type="text"
-                      value={vestingData.beneficiaryAddress}
-                      onChange={(e) =>
-                        handleVestingChange("beneficiaryAddress", e.target.value)
-                      }
-                      placeholder="0x0C2E8090a89A0af9"
-                      className="w-full text-sm md:text-base bg-transparent outline-none"
-                      disabled={isLoading}
-                    />
-                  </div>
-                </div>
-
-                {/* Amount */}
-                <div>
-                  <label className="block text-sm text-muted-foreground mb-2">
-                    Amount
-                  </label>
-                  <div className="bg-background rounded-xl md:rounded-2xl p-3 md:p-4 border-border border">
-                    <div className="flex items-center gap-2">
+              {mode === "create" ? (
+                // CREATE VESTING FORM
+                <div className="space-y-4 md:space-y-6">
+                  {/* Beneficiary Address */}
+                  <div>
+                    <label className="block text-sm text-muted-foreground mb-2">
+                      Beneficiary Address
+                    </label>
+                    <div className="bg-background rounded-xl md:rounded-2xl p-3 md:p-4 border-border border">
                       <input
-                        type="number"
-                        value={vestingData.amount}
+                        type="text"
+                        value={vestingData.beneficiaryAddress}
                         onChange={(e) =>
-                          handleVestingChange("amount", e.target.value)
+                          handleVestingChange(
+                            "beneficiaryAddress",
+                            e.target.value
+                          )
                         }
-                        placeholder="1000"
+                        placeholder="0x0C2E8090a89A0af9"
                         className="w-full text-sm md:text-base bg-transparent outline-none"
-                        disabled={isLoading}
-                      />
-                      <span className="text-sm md:text-base text-muted-foreground">
-                        Tokens
-                      </span>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Cliff */}
-                <div>
-                  <label className="block text-sm text-muted-foreground mb-2">
-                    Cliff (in seconds)
-                  </label>
-                  <div className="bg-background rounded-xl md:rounded-2xl p-3 md:p-4 border-border border">
-                    <div className="flex items-center gap-2">
-                      <Hourglass className="w-4 h-4 text-muted-foreground" />
-                      <input
-                        type="number"
-                        value={vestingData.cliff}
-                        onChange={(e) =>
-                          handleVestingChange("cliff", e.target.value)
-                        }
-                        placeholder="86400 (1 day)"
-                        className="w-full text-sm md:text-base bg-transparent outline-none"
-                        disabled={isLoading}
+                        disabled={isCreating}
                       />
                     </div>
                   </div>
-                  {vestingData.cliff && !isNaN(parseFloat(vestingData.cliff)) && (
-                    <p className="text-xs text-muted-foreground mt-1">
-                      ≈ {formatTime(parseFloat(vestingData.cliff))}
-                    </p>
-                  )}
-                </div>
 
-                {/* Release Rate */}
-                <div>
-                  <label className="block text-sm text-muted-foreground mb-2">
-                    Release Rate (tokens per second)
-                  </label>
-                  <div className="bg-background rounded-xl md:rounded-2xl p-3 md:p-4 border-border border">
-                    <div className="flex items-center gap-2">
-                      <BarChart3 className="w-4 h-4 text-muted-foreground" />
-                      <input
-                        type="number"
-                        value={vestingData.releaseRate}
-                        onChange={(e) =>
-                          handleVestingChange("releaseRate", e.target.value)
-                        }
-                        placeholder="0.01"
-                        className="w-full text-sm md:text-base bg-transparent outline-none"
-                        disabled={isLoading}
-                      />
+                  {/* Amount */}
+                  <div>
+                    <label className="block text-sm text-muted-foreground mb-2">
+                      Amount
+                    </label>
+                    <div className="bg-background rounded-xl md:rounded-2xl p-3 md:p-4 border-border border">
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="number"
+                          value={vestingData.amount}
+                          onChange={(e) =>
+                            handleVestingChange("amount", e.target.value)
+                          }
+                          placeholder="1000"
+                          className="w-full text-sm md:text-base bg-transparent outline-none"
+                          disabled={isCreating}
+                        />
+                        <span className="text-sm md:text-base text-muted-foreground">
+                          Tokens
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Cliff */}
+                  <div>
+                    <label className="block text-sm text-muted-foreground mb-2">
+                      Cliff (in seconds)
+                    </label>
+                    <div className="bg-background rounded-xl md:rounded-2xl p-3 md:p-4 border-border border">
+                      <div className="flex items-center gap-2">
+                        <Hourglass className="w-4 h-4 text-muted-foreground" />
+                        <input
+                          type="number"
+                          value={vestingData.cliff}
+                          onChange={(e) =>
+                            handleVestingChange("cliff", e.target.value)
+                          }
+                          placeholder="86400 (1 day)"
+                          className="w-full text-sm md:text-base bg-transparent outline-none"
+                          disabled={isCreating}
+                        />
+                      </div>
+                    </div>
+                    {vestingData.cliff &&
+                      !isNaN(parseFloat(vestingData.cliff)) && (
+                        <p className="text-xs text-muted-foreground mt-1">
+                          ≈ {formatTime(parseFloat(vestingData.cliff))}
+                        </p>
+                      )}
+                  </div>
+
+                  {/* Release Rate */}
+                  <div>
+                    <label className="block text-sm text-muted-foreground mb-2">
+                      Release Rate (tokens per second)
+                    </label>
+                    <div className="bg-background rounded-xl md:rounded-2xl p-3 md:p-4 border-border border">
+                      <div className="flex items-center gap-2">
+                        <BarChart3 className="w-4 h-4 text-muted-foreground" />
+                        <input
+                          type="number"
+                          value={vestingData.releaseRate}
+                          onChange={(e) =>
+                            handleVestingChange("releaseRate", e.target.value)
+                          }
+                          placeholder="0.01"
+                          className="w-full text-sm md:text-base bg-transparent outline-none"
+                          disabled={isCreating}
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Period */}
+                  <div>
+                    <label className="block text-sm text-muted-foreground mb-2">
+                      Period (in seconds)
+                    </label>
+                    <div className="bg-background rounded-xl md:rounded-2xl p-3 md:p-4 border-border border">
+                      <div className="flex items-center gap-2">
+                        <Clock className="w-4 h-4 text-muted-foreground" />
+                        <input
+                          type="number"
+                          value={vestingData.period}
+                          onChange={(e) =>
+                            handleVestingChange("period", e.target.value)
+                          }
+                          placeholder="2592000 (30 days)"
+                          className="w-full text-sm md:text-base bg-transparent outline-none"
+                          disabled={isCreating}
+                        />
+                      </div>
+                    </div>
+                    {vestingData.period &&
+                      !isNaN(parseFloat(vestingData.period)) && (
+                        <p className="text-xs text-muted-foreground mt-1">
+                          ≈ {formatTime(parseFloat(vestingData.period))}
+                        </p>
+                      )}
+                  </div>
+                </div>
+              ) : (
+                // CLAIM TOKENS FORM
+                <div className="space-y-4 md:space-y-6">
+                  {/* Vesting ID */}
+                  <div>
+                    <label className="block text-sm text-muted-foreground mb-2">
+                      Vesting ID
+                    </label>
+                    <div className="bg-background rounded-xl md:rounded-2xl p-3 md:p-4 border-border border">
+                      <div className="flex items-center gap-2">
+                        <Hourglass className="w-4 h-4 text-muted-foreground" />
+                        <input
+                          type="text"
+                          value={claimData.vestingId}
+                          onChange={(e) =>
+                            handleClaimChange("vestingId", e.target.value)
+                          }
+                          placeholder="0x189c51d794cdd150e7b40e7bf837d4455c59298d7c252c66457b3e9358640683"
+                          className="w-full text-sm md:text-base bg-transparent outline-none"
+                          disabled={isClaiming}
+                        />
+                      </div>
                     </div>
                   </div>
                 </div>
-
-                {/* Period */}
-                <div>
-                  <label className="block text-sm text-muted-foreground mb-2">
-                    Period (in seconds)
-                  </label>
-                  <div className="bg-background rounded-xl md:rounded-2xl p-3 md:p-4 border-border border">
-                    <div className="flex items-center gap-2">
-                      <Clock className="w-4 h-4 text-muted-foreground" />
-                      <input
-                        type="number"
-                        value={vestingData.period}
-                        onChange={(e) =>
-                          handleVestingChange("period", e.target.value)
-                        }
-                        placeholder="2592000 (30 days)"
-                        className="w-full text-sm md:text-base bg-transparent outline-none"
-                        disabled={isLoading}
-                      />
-                    </div>
-                  </div>
-                  {vestingData.period && !isNaN(parseFloat(vestingData.period)) && (
-                    <p className="text-xs text-muted-foreground mt-1">
-                      ≈ {formatTime(parseFloat(vestingData.period))}
-                    </p>
-                  )}
-                </div>
-              </div>
+              )}
 
               <div className="mt-6 md:mt-8">
                 <button
                   className={cn(
                     "w-full bg-primary text-primary-foreground font-medium py-3 md:py-4 rounded-xl md:rounded-2xl transition-colors flex items-center justify-center gap-2",
-                    isLoading
+                    isCreating || isClaiming
                       ? "opacity-75 cursor-not-allowed"
                       : "hover:bg-primary/90"
                   )}
                   onClick={handleSubmit}
-                  disabled={isLoading}
+                  disabled={isCreating || isClaiming}
                 >
-                  {isLoading ? (
+                  {isCreating || isClaiming ? (
                     <>
                       <Loader2 className="w-4 h-4 md:w-5 md:h-5 animate-spin" />
-                      Creating Vesting Schedule...
+                      {mode === "create"
+                        ? "Creating Vesting Schedule..."
+                        : "Claiming Tokens..."}
                     </>
                   ) : (
-                    "Create Vesting Schedule"
+                    <>
+                      {mode === "create" ? (
+                        <>
+                          <ArrowUpFromLine className="w-4 h-4" />
+                          Create Vesting Schedule
+                        </>
+                      ) : (
+                        <>
+                          <ArrowDownToLine className="w-4 h-4" />
+                          Claim Tokens
+                        </>
+                      )}
+                    </>
                   )}
                 </button>
               </div>
@@ -306,15 +513,21 @@ const Vesting = () => {
                     <>
                       <div>
                         <p className="text-sm">Total Amount</p>
-                        <p className="text-lg font-medium">{unlockInfo.totalAmount} Tokens</p>
+                        <p className="text-lg font-medium">
+                          {unlockInfo.totalAmount} Tokens
+                        </p>
                       </div>
                       <div>
                         <p className="text-sm">Release Rate</p>
-                        <p className="text-lg font-medium">{unlockInfo.ratePerSecond} tokens/second</p>
+                        <p className="text-lg font-medium">
+                          {unlockInfo.ratePerSecond} tokens/second
+                        </p>
                       </div>
                       <div>
                         <p className="text-sm">Vesting Duration</p>
-                        <p className="text-lg font-medium">{unlockInfo.formattedTime}</p>
+                        <p className="text-lg font-medium">
+                          {unlockInfo.formattedTime}
+                        </p>
                       </div>
                     </>
                   ) : (
@@ -325,8 +538,6 @@ const Vesting = () => {
                 </div>
               </div>
             </div>
-
-        
           </div>
         </div>
       </div>
