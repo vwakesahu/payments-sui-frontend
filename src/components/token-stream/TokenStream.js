@@ -22,6 +22,7 @@ const TokenStream = () => {
   const account = useCurrentAccount();
   const [mode, setMode] = useState("create");
   const [isSuccess, setIsSuccess] = useState(false);
+  const [successMessage, setSuccessMessage] = useState("");
   const [copied, setCopied] = useState(false);
 
   const {
@@ -83,6 +84,7 @@ const TokenStream = () => {
     }));
     setCreateError("");
     setIsSuccess(false);
+    setSuccessMessage("");
   };
 
   const handleWithdrawChange = (field, value) => {
@@ -92,6 +94,7 @@ const TokenStream = () => {
     }));
     setWithdrawError("");
     setIsSuccess(false);
+    setSuccessMessage("");
   };
 
   const handleModeToggle = (newMode) => {
@@ -99,6 +102,7 @@ const TokenStream = () => {
     setCreateError("");
     setWithdrawError("");
     setIsSuccess(false);
+    setSuccessMessage("");
   };
 
   const handleSubmit = async () => {
@@ -107,12 +111,14 @@ const TokenStream = () => {
         setIsCreating(true);
         setCreateError("");
         setIsSuccess(false);
+        setSuccessMessage("");
 
         const result = await createStream(createStreamData);
 
         if (result) {
           setIsSuccess(true);
-          // If we have a stream ID, switch to withdraw mode and pre-fill it
+          setSuccessMessage("Token stream created successfully!");
+          // If we have a stream ID, update the withdraw data
           if (result.streamId) {
             console.log(
               "Setting withdraw data with stream ID:",
@@ -122,8 +128,6 @@ const TokenStream = () => {
               ...prev,
               streamId: result.streamId,
             }));
-            // Don't automatically switch to withdraw mode
-            // setMode("withdraw");
           }
         }
       } catch (err) {
@@ -136,11 +140,13 @@ const TokenStream = () => {
         setIsWithdrawing(true);
         setWithdrawError("");
         setIsSuccess(false);
+        setSuccessMessage("");
 
         const result = await withdrawFromStream(withdrawData.streamId);
 
         if (result) {
           setIsSuccess(true);
+          setSuccessMessage("Tokens withdrawn successfully!");
         }
       } catch (err) {
         setWithdrawError(err.message);
@@ -236,62 +242,52 @@ const TokenStream = () => {
                   <div className="flex flex-col gap-3">
                     <div className="flex items-center gap-2">
                       <span className="text-green-600">✓</span>
-                      <span className="font-medium">
-                        {mode === "create"
-                          ? "Token stream created successfully!"
-                          : "Tokens withdrawn successfully!"}
-                      </span>
+                      <span className="font-medium">{successMessage}</span>
                     </div>
 
-                    {mode === "create" && (
+                    {mode === "create" && streamId && (
                       <div className="bg-white rounded-lg p-3 border border-green-200">
                         <div className="flex items-center justify-between mb-2">
                           <span className="text-sm font-medium text-gray-700">
                             Stream ID:
                           </span>
-                          {streamId && (
-                            <button
-                              onClick={() => copyToClipboard(streamId)}
-                              className="flex items-center gap-1 px-2 py-1 text-xs bg-gray-100 hover:bg-gray-200 rounded transition-colors"
-                              title="Copy stream ID"
-                            >
-                              <Copy className="w-3 h-3" />
-                              {copied ? "Copied!" : "Copy"}
-                            </button>
-                          )}
+                          <button
+                            onClick={() => copyToClipboard(streamId)}
+                            className="flex items-center gap-1 px-2 py-1 text-xs bg-gray-100 hover:bg-gray-200 rounded transition-colors"
+                            title="Copy stream ID"
+                          >
+                            <Copy className="w-3 h-3" />
+                            {copied ? "Copied!" : "Copy"}
+                          </button>
                         </div>
                         <div className="text-xs text-gray-600 break-all mb-2">
-                          {streamId || "Extracting stream ID..."}
+                          {streamId}
                         </div>
-                        {streamId && (
-                          <div className="mt-2">
-                            <button
-                              onClick={() => {
-                                setWithdrawData((prev) => ({
-                                  ...prev,
-                                  streamId: streamId,
-                                }));
-                                setMode("withdraw");
-                              }}
-                              className="text-sm text-blue-600 hover:text-blue-800 underline transition-colors"
-                            >
-                              Switch to withdraw mode
-                            </button>
-                          </div>
-                        )}
+                        <div className="mt-2">
+                          <button
+                            onClick={() => {
+                              setWithdrawData((prev) => ({
+                                ...prev,
+                                streamId: streamId,
+                              }));
+                              setMode("withdraw");
+                            }}
+                            className="text-sm text-blue-600 hover:text-blue-800 underline transition-colors"
+                          >
+                            Switch to withdraw mode
+                          </button>
+                        </div>
                       </div>
                     )}
 
-                    {(createDigest || withdrawDigest) && (
+                    {mode === "create" && createDigest && (
                       <div className="bg-white rounded-lg p-3 border border-green-200">
                         <div className="flex items-center justify-between mb-2">
                           <span className="text-sm font-medium text-gray-700">
-                            Transaction ID:
+                            Create Transaction ID:
                           </span>
                           <button
-                            onClick={() =>
-                              copyToClipboard(createDigest || withdrawDigest)
-                            }
+                            onClick={() => copyToClipboard(createDigest)}
                             className="flex items-center gap-1 px-2 py-1 text-xs bg-gray-100 hover:bg-gray-200 rounded transition-colors"
                             title="Copy transaction ID"
                           >
@@ -299,15 +295,41 @@ const TokenStream = () => {
                             {copied ? "Copied!" : "Copy"}
                           </button>
                         </div>
-
                         <div className="text-xs text-gray-600 break-all mb-2">
-                          {createDigest || withdrawDigest}
+                          {createDigest}
                         </div>
-
                         <a
-                          href={`https://suiscan.xyz/devnet/tx/${
-                            createDigest || withdrawDigest
-                          }`}
+                          href={`https://suiscan.xyz/devnet/tx/${createDigest}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-1 text-sm text-blue-600 hover:text-blue-800 underline transition-colors"
+                        >
+                          <ExternalLink className="w-3 h-3" />
+                          View on Sui Explorer
+                        </a>
+                      </div>
+                    )}
+
+                    {mode === "withdraw" && withdrawDigest && (
+                      <div className="bg-white rounded-lg p-3 border border-green-200">
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="text-sm font-medium text-gray-700">
+                            Withdraw Transaction ID:
+                          </span>
+                          <button
+                            onClick={() => copyToClipboard(withdrawDigest)}
+                            className="flex items-center gap-1 px-2 py-1 text-xs bg-gray-100 hover:bg-gray-200 rounded transition-colors"
+                            title="Copy transaction ID"
+                          >
+                            <Copy className="w-3 h-3" />
+                            {copied ? "Copied!" : "Copy"}
+                          </button>
+                        </div>
+                        <div className="text-xs text-gray-600 break-all mb-2">
+                          {withdrawDigest}
+                        </div>
+                        <a
+                          href={`https://suiscan.xyz/devnet/tx/${withdrawDigest}`}
                           target="_blank"
                           rel="noopener noreferrer"
                           className="inline-flex items-center gap-1 text-sm text-blue-600 hover:text-blue-800 underline transition-colors"
