@@ -57,7 +57,7 @@ const Foot = () => {
         whileHover={{ scale: 1.02 }}
       >
         <Link
-          href="https://github.com/vwakesahu/"
+          href="https://github.com/muskbuster/Sui-payroll"
           target="_blank"
           rel="noopener noreferrer"
           className="no-underline text-foreground hover:text-muted-foreground transition-colors"

@@ -20,13 +20,15 @@ const Features = () => {
           <div className="space-y-6">
             <div className="bg-primary rounded-3xl p-8 aspect-square">
               <div className="h-full flex flex-col justify-between">
-                <div className="text-8xl font-medium text-primary-foreground">01</div>
+                <div className="text-8xl font-medium text-primary-foreground">
+                  01
+                </div>
                 <div>
                   <h3 className="text-xl text-primary-foreground mb-2">
-                    Confidential Payments
+                    Vesting
                   </h3>
                   <p className="text-muted-foreground">
-                    Distribute funds on-chain with encrypted amounts
+                    Distribute funds on-chain with amounts
                   </p>
                 </div>
               </div>
@@ -35,9 +37,9 @@ const Features = () => {
             <div className="bg-card rounded-3xl p-8 border border-border">
               <div className="text-8xl font-medium text-foreground">02</div>
               <div className="mt-auto">
-                <h3 className="text-xl mb-2">Stealth USDC</h3>
+                <h3 className="text-xl mb-2">Token Streaming</h3>
                 <p className="text-muted-foreground">
-                  Store stablecoins, hiding amounts from public visibility
+                  Stream tokens every second.
                 </p>
               </div>
             </div>
@@ -76,16 +78,18 @@ const Features = () => {
               <div className="mt-auto">
                 <h3 className="text-xl mb-2">Effortless Payroll</h3>
                 <p className="text-muted-foreground">
-                  Easily manage payroll with encrypted addresses
+                  Easily manage payroll with multiple addresses
                 </p>
               </div>
             </div>
 
             <div className="bg-primary rounded-3xl p-8 aspect-square">
               <div className="h-full flex flex-col justify-between">
-                <div className="text-7xl font-medium text-primary-foreground">100%</div>
+                <div className="text-7xl font-medium text-primary-foreground">
+                  100%
+                </div>
                 <p className="text-muted-foreground text-lg">
-                  Confidentiality in every transaction
+                  on-chain payroll, no need for a middleman.
                 </p>
               </div>
             </div>

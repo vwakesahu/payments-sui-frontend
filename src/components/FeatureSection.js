@@ -16,6 +16,16 @@ const FeatureSection = () => {
             <br className="hidden sm:block" />
             <span className="text-muted-foreground">Distribution </span>
             <span className="text-foreground">System</span>
+            <div className="flex items-center justify-center gap-2 mt-2">
+              <span className="text-sm sm:text-base text-muted-foreground/80">
+                on
+              </span>
+              <img
+                src="https://cdn.prod.website-files.com/6425f546844727ce5fb9e5ab/659d970f53d2997773cf1db1_emblem-sui-d.svg"
+                alt="Sui Logo"
+                className="h-6 sm:h-8 w-auto"
+              /><span className="text-sm sm:text-base text-muted-foreground/80">SUI</span>
+            </div>
           </h1>
         </div>
 
@@ -51,7 +61,9 @@ const FeatureSection = () => {
                 <ChevronRight className="w-5 h-5 text-foreground/30 group-hover:translate-x-1 transition-transform duration-300" />
               </div>
               <div>
-                <h3 className="text-lg sm:text-xl font-medium mb-2 sm:mb-3">Employee portal</h3>
+                <h3 className="text-lg sm:text-xl font-medium mb-2 sm:mb-3">
+                  Employee portal
+                </h3>
                 <p className="text-sm sm:text-base text-muted-foreground">
                   Secure portal for payroll details
                 </p>
@@ -69,7 +81,9 @@ const FeatureSection = () => {
                 <ChevronRight className="w-5 h-5 text-foreground/30 group-hover:translate-x-1 transition-transform duration-300" />
               </div>
               <div>
-                <h3 className="text-lg sm:text-xl font-medium mb-2 sm:mb-3">Global payouts</h3>
+                <h3 className="text-lg sm:text-xl font-medium mb-2 sm:mb-3">
+                  Global payouts
+                </h3>
                 <p className="text-sm sm:text-base text-accent-foreground">
                   Efficient cross-border transfers
                 </p>

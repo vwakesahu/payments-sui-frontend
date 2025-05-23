@@ -31,7 +31,7 @@ const VideoContent = () => (
   <div className="relative pt-[56.25%]">
     <iframe
       className="absolute top-0 left-0 w-full h-full"
-      src="https://www.youtube.com/embed/?si=rKZZhYTfKIhuEMTp"
+      src="https://www.loom.com/embed/7c56e8d5c65b42328adb10b6cd9f2180?sid=67751b8b-4c56-45f7-a8b0-26618bd08a90"
       title="Protocol Demo"
       frameBorder="0"
       allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"

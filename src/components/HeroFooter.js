@@ -28,17 +28,17 @@ const HeroFooter = () => {
     const checkMobile = () => {
       setIsMobile(window.innerWidth < 768);
     };
-    
+
     checkMobile();
-    window.addEventListener('resize', checkMobile);
-    return () => window.removeEventListener('resize', checkMobile);
+    window.addEventListener("resize", checkMobile);
+    return () => window.removeEventListener("resize", checkMobile);
   }, []);
 
   const VideoContent = () => (
     <div className="relative pt-[56.25%] bg-primary">
       <iframe
         className="absolute top-0 left-0 w-full h-full"
-        src="https://www.example.com/embed/sample-video"
+        src="https://www.loom.com/embed/7c56e8d5c65b42328adb10b6cd9f2180?sid=67751b8b-4c56-45f7-a8b0-26618bd08a90"
         title="Protocol Demo"
         frameBorder="0"
         allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
@@ -57,12 +57,12 @@ const HeroFooter = () => {
         <div className="relative z-10 w-full">
           <div className="flex flex-col sm:flex-row items-center gap-4 justify-center">
             <div className="w-12 h-12 sm:w-16 sm:h-16 rounded-full grid place-items-center p-1.5">
-              <Image 
-                src="/logob.svg" 
-                width={40} 
-                height={40} 
+              <Image
+                src="/logob.svg"
+                width={40}
+                height={40}
                 alt="Hero Image"
-                className="sm:w-[50px] sm:h-[50px]" 
+                className="sm:w-[50px] sm:h-[50px]"
               />
             </div>
             <div>
@@ -97,7 +97,8 @@ const HeroFooter = () => {
             <DrawerHeader className="p-4">
               <DrawerTitle>Protocol Demo</DrawerTitle>
               <DrawerDescription>
-                Watch how our <span className="text-foreground">Payroll Protocol</span> works.
+                Watch how our{" "}
+                <span className="text-foreground">Payroll Protocol</span> works.
               </DrawerDescription>
             </DrawerHeader>
             <div className="px-4">
@@ -105,9 +106,7 @@ const HeroFooter = () => {
             </div>
             <DrawerFooter className="pt-2">
               <DrawerClose asChild>
-                <button
-                  className="w-full rounded-full py-2 bg-muted text-sm font-medium transition-colors hover:bg-muted/80"
-                >
+                <button className="w-full rounded-full py-2 bg-muted text-sm font-medium transition-colors hover:bg-muted/80">
                   Close
                 </button>
               </DrawerClose>
@@ -123,8 +122,8 @@ const HeroFooter = () => {
             <DialogHeader className="p-6 pb-0">
               <DialogTitle>Protocol Demo</DialogTitle>
               <DialogDescription>
-                Watch how our <span className="text-foreground">Payroll Protocol</span>{" "}
-                works.
+                Watch how our{" "}
+                <span className="text-foreground">Payroll Protocol</span> works.
               </DialogDescription>
             </DialogHeader>
             <VideoContent />

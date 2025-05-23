@@ -10,7 +10,7 @@ export default function Home() {
   return (
     <div className="min-h-screen md:p-8 pt-4">
       <FeatureSection />
-      <HeadingWithAvatars />
+      {/* <HeadingWithAvatars /> */}
        <HeroFooter />
       <Features />
       <Foot />  
