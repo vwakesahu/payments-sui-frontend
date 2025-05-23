@@ -183,24 +183,33 @@ const Payroll = () => {
                       <span className="font-medium">{successMessage}</span>
                     </div>
 
-                    {payrollId && (
+                    {transactionDigest && (
                       <div className="bg-white rounded-lg p-3 border border-green-200">
                         <div className="flex items-center justify-between mb-2">
                           <span className="text-sm font-medium text-gray-700">
-                            Payroll ID:
+                            Transaction ID:
                           </span>
                           <button
-                            onClick={() => copyToClipboard(payrollId)}
+                            onClick={() => copyToClipboard(transactionDigest)}
                             className="flex items-center gap-1 px-2 py-1 text-xs bg-gray-100 hover:bg-gray-200 rounded transition-colors"
-                            title="Copy payroll ID"
+                            title="Copy transaction ID"
                           >
                             <Copy className="w-3 h-3" />
                             {copied ? "Copied!" : "Copy"}
                           </button>
                         </div>
                         <div className="text-xs text-gray-600 break-all mb-2">
-                          {payrollId}
+                          {transactionDigest}
                         </div>
+                        <a
+                          href={`https://suiscan.xyz/devnet/tx/${transactionDigest}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-1 text-sm text-blue-600 hover:text-blue-800 underline transition-colors"
+                        >
+                          <ExternalLink className="w-3 h-3" />
+                          View on Sui Explorer
+                        </a>
                       </div>
                     )}
                   </div>
