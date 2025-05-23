@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   ArrowUpFromLine,
   ArrowDownToLine,
@@ -7,6 +7,8 @@ import {
   Wallet,
   User,
   HeartHandshake,
+  Copy,
+  ExternalLink,
 } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
@@ -27,10 +29,23 @@ const TokenStream = () => {
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
+  const [transactionDigest, setTransactionDigest] = useState("");
+  const [copied, setCopied] = useState(false);
+
+  // Copy transaction digest to clipboard
+  const copyToClipboard = async (text) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000); // Reset after 2 seconds
+    } catch (err) {
+      console.error("Failed to copy:", err);
+    }
+  };
 
   // Create Stream Form State
   const [createStreamData, setCreateStreamData] = useState({
-    recipientAddress: "",
+    recipientAddress: account?.address || "", // Pre-populate with your address
     amountPerSecond: "",
     topupBalance: "",
   });
@@ -41,59 +56,111 @@ const TokenStream = () => {
     amountPerSecond: "",
   });
 
-  // HARDCODED FUNCTION - NO FORM CALCULATIONS
-  const createStreamHardcoded = async () => {
+  // Auto-populate recipient address when account is available
+  useEffect(() => {
+    if (account?.address && !createStreamData.recipientAddress) {
+      setCreateStreamData(prev => ({
+        ...prev,
+        recipientAddress: account.address,
+      }));
+    }
+  }, [account?.address]);
+
+  // FORM-BASED FUNCTION - Using form values with proper integer handling
+  const createStreamFromForm = async () => {
     try {
       if (!account) {
         throw new Error("Please connect your wallet first");
       }
 
-      console.log("=== HARDCODED TRANSACTION - NO CALCULATIONS ===");
+      // Validate form inputs
+      if (!createStreamData.recipientAddress || !createStreamData.amountPerSecond || !createStreamData.topupBalance) {
+        throw new Error("Please fill all fields");
+      }
+
+      if (!createStreamData.recipientAddress.startsWith("0x")) {
+        throw new Error("Invalid recipient address format");
+      }
+
+      console.log("=== CREATING STREAM FROM FORM VALUES ===");
       const tx = new Transaction();
 
-      // COMPLETELY HARDCODED - NO FORM INPUT USED
-      const RECIPIENT = "0xf66ebd40671196ec784ac4d547563403986bbd33cfa3cdb28a17000bef3b4c0e";
-      const START_TIME = 0;
-      const END_TIME = 10;
-      const AMOUNT_MIST = 1000000000; // 1 SUI
+      // Parse and validate form inputs
+      const amountPerSecondNum = parseFloat(createStreamData.amountPerSecond);
+      const topupBalanceNum = parseFloat(createStreamData.topupBalance);
 
-      console.log("Hardcoded values (NO calculations):", {
-        recipient: RECIPIENT,
-        startTime: START_TIME,
-        endTime: END_TIME,
-        amount: AMOUNT_MIST,
+      if (isNaN(amountPerSecondNum) || isNaN(topupBalanceNum)) {
+        throw new Error("Invalid number values");
+      }
+
+      if (amountPerSecondNum <= 0 || topupBalanceNum <= 0) {
+        throw new Error("Amounts must be greater than 0");
+      }
+
+      // Convert to MIST (smallest unit) and ensure integers
+      const amountPerSecondInMist = Math.floor(amountPerSecondNum * 1e9);
+      const topupBalanceInMist = Math.floor(topupBalanceNum * 1e9);
+
+      // Validate converted amounts
+      if (amountPerSecondInMist <= 0 || topupBalanceInMist <= 0) {
+        throw new Error("Amounts are too small - use larger values");
+      }
+
+      if (amountPerSecondInMist > topupBalanceInMist) {
+        throw new Error("Amount per second cannot be greater than total balance");
+      }
+
+      // Calculate duration (ensuring integer result)
+      const durationInSeconds = Math.floor(topupBalanceInMist / amountPerSecondInMist);
+      if (durationInSeconds <= 0) {
+        throw new Error("Stream duration is too short");
+      }
+
+      // Get current time and calculate end time (both integers)
+      const currentTime = Math.floor(Date.now() / 1000);
+      const endTime = currentTime + durationInSeconds;
+
+      console.log("Form-based transaction values:", {
+        recipient: createStreamData.recipientAddress,
+        amountPerSecondInMist,
+        topupBalanceInMist,
+        currentTime,
+        endTime,
+        durationInSeconds,
       });
 
-      // Verify these are integers
-      console.log("Are all values integers?", {
-        startTime: Number.isInteger(START_TIME),
-        endTime: Number.isInteger(END_TIME),
-        amount: Number.isInteger(AMOUNT_MIST),
+      // Verify all values are integers
+      console.log("All values are integers:", {
+        amountPerSecondInMist: Number.isInteger(amountPerSecondInMist),
+        topupBalanceInMist: Number.isInteger(topupBalanceInMist),
+        currentTime: Number.isInteger(currentTime),
+        endTime: Number.isInteger(endTime),
+        durationInSeconds: Number.isInteger(durationInSeconds),
       });
 
-      // Create coin - this is the only calculation allowed
-      const [coin] = tx.splitCoins(tx.gas, [AMOUNT_MIST]);
+      // Create coin with the stream amount
+      const [coin] = tx.splitCoins(tx.gas, [topupBalanceInMist]);
 
-      // Transaction with hardcoded integers
+      // Use the working transaction structure
       tx.moveCall({
         target: `0xdebe630104899d2488485b82e953b02a4e8d95775f152dbd6fd6e7b91eb9ba8e::streaming::create_stream_entry`,
         typeArguments: ["0x2::sui::SUI"],
         arguments: [
           coin,
-          tx.pure.address(RECIPIENT),    // Use tx.pure.address() format
-          tx.pure.u64(START_TIME),       // 0
-          tx.pure.u64(END_TIME),         // 10  
+          tx.pure.address(createStreamData.recipientAddress),
+          tx.pure.u64(currentTime),
+          tx.pure.u64(endTime),
           tx.object("0x6"),
         ],
       });
 
-      console.log("Signing hardcoded transaction...");
+      console.log("Signing form-based transaction...");
 
       const { bytes, signature, reportTransactionEffects } = await signTransaction({
         transaction: tx,
       });
 
-      console.log("Executing hardcoded transaction...");
+      console.log("Executing form-based transaction...");
 
       const result = await suiClient.executeTransactionBlock({
         transactionBlock: bytes,
@@ -109,11 +176,17 @@ const TokenStream = () => {
         await reportTransactionEffects(result.rawEffects);
       }
 
-      console.log("SUCCESS: Hardcoded transaction completed:", result);
+      console.log("SUCCESS: Form-based transaction completed:", result);
+      
+      // Store transaction digest for the success link
+      if (result.digest) {
+        setTransactionDigest(result.digest);
+      }
+      
       return result;
       
     } catch (error) {
-      console.error("HARDCODED transaction failed:", error);
+      console.error("Form-based transaction failed:", error);
       throw error;
     }
   };
@@ -125,6 +198,8 @@ const TokenStream = () => {
     }));
     setError("");
     setIsSuccess(false);
+    setTransactionDigest(""); // Clear previous transaction
+    setCopied(false); // Reset copy state
   };
 
   const handleWithdrawChange = (field, value) => {
@@ -134,12 +209,16 @@ const TokenStream = () => {
     }));
     setError("");
     setIsSuccess(false);
+    setTransactionDigest(""); // Clear previous transaction
+    setCopied(false); // Reset copy state
   };
 
   const handleModeToggle = (newMode) => {
     setMode(newMode);
     setError("");
     setIsSuccess(false);
+    setTransactionDigest(""); // Clear previous transaction
+    setCopied(false); // Reset copy state
   };
 
   const createStream = async (
@@ -236,9 +315,11 @@ const TokenStream = () => {
       try {
         setIsLoading(true);
         setError("");
+        setTransactionDigest(""); // Clear previous transaction
+        setCopied(false); // Reset copy state
 
-        console.log("=== USING HARDCODED VALUES - IGNORING FORM ===");
-        const result = await createStreamHardcoded(); // Call the hardcoded function
+        console.log("=== USING FORM VALUES ===");
+        const result = await createStreamFromForm(); // Use form-based function
 
         if (result) {
           setIsSuccess(true);
@@ -259,14 +340,34 @@ const TokenStream = () => {
     }
   };
 
-  // Calculate estimated stream information based on hardcoded values for display
+  // Calculate estimated stream information based on form input data
   const calculateStreamInfo = () => {
-    // Since we're using hardcoded values, show hardcoded info
+    if (!createStreamData.amountPerSecond || !createStreamData.topupBalance) {
+      return null;
+    }
+
+    const ratePerSecond = parseFloat(createStreamData.amountPerSecond);
+    const balance = parseFloat(createStreamData.topupBalance);
+
+    if (isNaN(ratePerSecond) || isNaN(balance) || ratePerSecond === 0) {
+      return null;
+    }
+
+    const durationInSeconds = balance / ratePerSecond;
+    const days = Math.floor(durationInSeconds / 86400);
+    const hours = Math.floor((durationInSeconds % 86400) / 3600);
+    const minutes = Math.floor((durationInSeconds % 3600) / 60);
+
+    let duration = "";
+    if (days > 0) duration += `${days}d `;
+    if (hours > 0) duration += `${hours}h `;
+    if (minutes > 0) duration += `${minutes}m`;
+
     return {
-      durationInSeconds: 10,
-      formattedDuration: "10 seconds",
-      ratePerDay: 86400, // 1 SUI per second * 86400 seconds = 86400 SUI per day
-      balance: 1, // 1 SUI
+      durationInSeconds,
+      formattedDuration: duration.trim() || "< 1m",
+      ratePerDay: ratePerSecond * 86400,
+      balance,
     };
   };
 
@@ -320,20 +421,51 @@ const TokenStream = () => {
             {isSuccess && (
               <Alert className="mb-4 bg-green-50 border-green-200">
                 <AlertDescription className="text-green-800">
-                  {mode === "create"
-                    ? "Token stream created successfully!"
-                    : "Tokens withdrawn successfully!"}
+                  <div className="flex flex-col gap-3">
+                    <div className="flex items-center gap-2">
+                      <span className="text-green-600">✓</span>
+                      <span className="font-medium">
+                        {mode === "create"
+                          ? "Token stream created successfully!"
+                          : "Tokens withdrawn successfully!"}
+                      </span>
+                    </div>
+                    
+                    {transactionDigest && (
+                      <div className="bg-white rounded-lg p-3 border border-green-200">
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="text-sm font-medium text-gray-700">
+                            Transaction ID:
+                          </span>
+                          <button
+                            onClick={() => copyToClipboard(transactionDigest)}
+                            className="flex items-center gap-1 px-2 py-1 text-xs bg-gray-100 hover:bg-gray-200 rounded transition-colors"
+                            title="Copy transaction ID"
+                          >
+                            <Copy className="w-3 h-3" />
+                            {copied ? "Copied!" : "Copy"}
+                          </button>
+                        </div>
+                        
+                        <div className="text-xs text-gray-600 break-all mb-2">
+                          {transactionDigest}
+                        </div>
+                        
+                        <a
+                          href={`https://suiscan.xyz/devnet/tx/${transactionDigest}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-1 text-sm text-blue-600 hover:text-blue-800 underline transition-colors"
+                        >
+                          <ExternalLink className="w-3 h-3" />
+                          View on Sui Explorer
+                        </a>
+                      </div>
+                    )}
+                  </div>
                 </AlertDescription>
               </Alert>
             )}
-
-            {/* Hardcoded Values Notice */}
-            <Alert className="mb-4 bg-blue-50 border-blue-200">
-              <AlertDescription className="text-blue-800">
-                <strong>Testing Mode:</strong> Using hardcoded values for testing. 
-                Stream: 1 SUI for 10 seconds to test recipient. Form inputs are currently ignored.
-              </AlertDescription>
-            </Alert>
 
             {/* Form Content */}
             <div className="flex-1 flex flex-col">
@@ -555,7 +687,7 @@ const TokenStream = () => {
                     {mode === "create"
                       ? streamInfo
                         ? streamInfo.formattedDuration
-                        : "10 seconds"
+                        : "—"
                       : "—"}
                   </p>
                 </div>
@@ -626,12 +758,20 @@ const TokenStream = () => {
                   </p>
                   <div className="text-4xl md:text-5xl font-medium text-white">
                     {mode === "create"
-                      ? "1 SUI/10sec"
+                      ? createStreamData.amountPerSecond
+                        ? `${parseFloat(
+                            createStreamData.amountPerSecond
+                          ).toFixed(
+                            parseFloat(createStreamData.amountPerSecond) < 0.01
+                              ? 6
+                              : 4
+                          )}/sec`
+                        : "..."
                       : "..."}
                   </div>
-                  {mode === "create" && (
+                  {mode === "create" && createStreamData.amountPerSecond && (
                     <p className="text-white/80 text-sm mt-2">
-                      Hardcoded test stream (10 seconds duration)
+                      Continuous payment stream
                     </p>
                   )}
                 </div>
